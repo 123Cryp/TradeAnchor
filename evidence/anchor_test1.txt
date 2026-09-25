@@ -1,0 +1,1 @@
+Transaction confirmed. Recipient address: 0x8EDC6794937Ed1DC6476f88A51f1cC52b4fC571C. Amount sent successfully
