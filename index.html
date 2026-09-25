@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>TradeAnchor — The jury-backed adjudication protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0906;
+    --bg-raised:#141110;
+    --bg-sunken:#080705;
+    --line:rgba(237,225,204,0.12);
+    --line-soft:rgba(237,225,204,0.07);
+    --ink:#F1EAE0;
+    --ink-dim:#A79A85;
+    --ink-faint:#756B5C;
+    --gold:#C9A15E;
+    --gold-bright:#E4C27F;
+    --slash:#B0553F;
+    --outcome-good:#7DA187;
+    --outcome-bad:#B0553F;
+    --outcome-neutral:#8C8272;
+  }
+  html{ color-scheme:dark; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--gold-bright);}
+  code{ font-family:'IBM Plex Mono',monospace; }
+
+  /* ---------- top nav ---------- */
+  nav.topnav{
+    max-width:1180px;
+    margin:0 auto;
+    padding:22px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .brandmark{
+    display:flex; align-items:center; gap:10px;
+    font-family:'Fraunces',serif; font-weight:600; font-size:19px; letter-spacing:.01em;
+  }
+  .brandmark .scales{ width:22px; height:22px; flex-shrink:0; }
+  .navlinks{ display:flex; gap:26px; font-size:13.5px; color:var(--ink-dim); }
+  .navlinks a{ color:var(--ink-dim); text-decoration:none; }
+  .navlinks a:hover{ color:var(--gold-bright); }
+  @media (max-width:640px){ .navlinks{ display:none; } }
+
+  /* ---------- hero ---------- */
+  header.hero{
+    max-width:1180px;
+    margin:0 auto;
+    padding:52px 20px 40px;
+    position:relative;
+    display:grid;
+    grid-template-columns:1.15fr 0.85fr;
+    gap:32px;
+  }
+  @media (max-width:900px){ header.hero{ grid-template-columns:1fr; } }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0 0 18px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:clamp(38px,6.4vw,60px);
+    line-height:1.04;
+    letter-spacing:-.01em;
+    margin:0 0 20px;
+    color:var(--ink);
+  }
+  h1 .accent{ color:var(--gold-bright); font-style:italic; }
+  .lede{
+    font-size:16.5px;
+    line-height:1.65;
+    color:var(--ink-dim);
+    max-width:520px;
+    margin:0 0 26px;
+  }
+  .hero-ctas{ display:flex; gap:12px; flex-wrap:wrap; }
+  .btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    letter-spacing:.03em;
+    padding:12px 22px;
+    border-radius:2px;
+    cursor:pointer;
+    border:1px solid var(--gold);
+    text-decoration:none;
+    display:inline-block;
+  }
+  .btn-fill{ background:var(--gold); color:#1A140A; font-weight:600; }
+  .btn-fill:hover{ background:var(--gold-bright); }
+  .btn-outline{ background:transparent; color:var(--ink); border-color:var(--line); }
+  .btn-outline:hover{ border-color:var(--gold); color:var(--gold-bright); }
+
+  .hero-visual{ position:relative; min-height:280px; display:flex; align-items:center; justify-content:center; }
+  .hero-visual .rings{ width:100%; max-width:280px; opacity:.85; }
+  .float-card{
+    position:absolute;
+    background:var(--bg-raised);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:14px 16px;
+    font-family:'IBM Plex Mono',monospace;
+    max-width:230px;
+  }
+  .float-card .tag{
+    display:inline-block; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--gold); border:1px solid var(--gold); padding:2px 7px; margin-bottom:8px;
+  }
+  .float-card .big{ font-family:'Fraunces',serif; font-size:20px; color:var(--ink); margin:0 0 4px; }
+  .float-card .small{ font-size:11px; color:var(--ink-faint); line-height:1.5; }
+  .float-card.top{ top:-6px; right:0; }
+  .float-card.bottom{ bottom:6px; left:0; }
+  @media (max-width:900px){ .float-card{ position:static; margin:10px auto; max-width:320px; } }
+
+  .divider{ max-width:1180px; margin:0 auto; border-top:1px solid var(--line-soft); }
+
+  /* ---------- ticker strip ---------- */
+  .stripe{
+    max-width:1180px; margin:0 auto; padding:16px 20px;
+    display:flex; flex-wrap:wrap; gap:10px 28px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-faint);
+  }
+  .stripe span.on{ color:var(--gold); }
+
+  /* ---------- sections ---------- */
+  section{ max-width:1180px; margin:0 auto; padding:54px 20px; }
+  section.tight{ padding-top:34px; padding-bottom:34px; }
+  .section-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin-bottom:32px; flex-wrap:wrap; }
+  .section-head h2{
+    font-family:'Fraunces',serif; font-weight:500; font-size:clamp(24px,3.4vw,32px);
+    margin:6px 0 0; color:var(--ink);
+  }
+  .section-head p{ font-size:14px; color:var(--ink-dim); max-width:420px; margin:0; line-height:1.6; }
+
+  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); }
+  @media (max-width:800px){ .steps{ grid-template-columns:repeat(2,1fr); } }
+  .step-card{ background:var(--bg); padding:26px 22px; }
+  .step-num{ font-family:'IBM Plex Mono',monospace; color:var(--gold); font-size:13px; margin-bottom:14px; }
+  .step-card h3{ font-family:'Fraunces',serif; font-weight:500; font-size:19px; margin:0 0 10px; }
+  .step-card p{ font-size:13.5px; color:var(--ink-dim); line-height:1.55; margin:0; }
+
+  /* ---------- recent trades table ---------- */
+  table.docket{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.docket th{
+    text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-faint); padding:0 10px 10px; border-bottom:1px solid var(--line);
+  }
+  table.docket td{ padding:12px 10px; border-bottom:1px solid var(--line-soft); color:var(--ink); vertical-align:top; }
+  table.docket tr:last-child td{ border-bottom:none; }
+  .pill{ display:inline-block; padding:3px 9px; border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; border:1px solid; }
+  .pill-open{ color:var(--ink-dim); border-color:var(--line); }
+  .pill-good{ color:var(--outcome-good); border-color:var(--outcome-good); }
+  .pill-bad{ color:var(--outcome-bad); border-color:var(--outcome-bad); }
+  .pill-neutral{ color:var(--outcome-neutral); border-color:var(--outcome-neutral); }
+  .docket-empty{ color:var(--ink-faint); font-size:13px; font-family:'IBM Plex Mono',monospace; }
+  .refresh-link{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--gold); background:none; border:1px solid var(--gold); padding:6px 12px; cursor:pointer; }
+
+  /* ---------- action panels ---------- */
+  .panels-grid{ display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); }
+  @media (max-width:920px){ .panels-grid{ grid-template-columns:1fr; } }
+  .panel{ background:var(--bg); padding:24px; }
+  .panel h3{
+    font-family:'Fraunces',serif; font-weight:500; font-size:18px; margin:0 0 4px; color:var(--ink);
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .panel .tier-mark{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--gold); border:1px solid var(--gold); padding:1px 7px; }
+  .panel .tier-mark.jury{ color:var(--slash); border-color:var(--slash); }
+  .panel .desc{ font-size:12.5px; color:var(--ink-dim); margin:8px 0 16px; line-height:1.55; }
+  label{
+    display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--ink-faint); margin:12px 0 6px;
+  }
+  label:first-of-type{ margin-top:0; }
+  input[type=text], input[type=datetime-local], textarea, select{
+    width:100%; background:var(--bg-sunken); border:1px solid var(--line); border-radius:2px;
+    color:var(--ink); font-family:'Inter',sans-serif; font-size:13.5px; padding:9px 10px;
+  }
+  textarea{ font-family:'IBM Plex Mono',monospace; font-size:12px; resize:vertical; min-height:58px; }
+  input:focus, textarea:focus, select:focus{ outline:1px solid var(--gold); outline-offset:1px; }
+  .hint{ font-size:11px; color:var(--ink-faint); margin-top:4px; line-height:1.5; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  button.primary, button.secondary{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.03em; text-transform:uppercase;
+    padding:10px 18px; border-radius:2px; cursor:pointer; margin-top:16px; margin-right:8px; border:1px solid;
+  }
+  button.primary{ background:var(--gold); border-color:var(--gold); color:#1A140A; font-weight:600; }
+  button.primary:hover{ background:var(--gold-bright); border-color:var(--gold-bright); }
+  button.secondary{ background:none; border-color:var(--line); color:var(--ink-dim); }
+  button.secondary:hover{ border-color:var(--slash); color:var(--slash); }
+
+  .out{
+    display:none; margin-top:14px; background:var(--bg-sunken); border:1px solid var(--line); border-radius:2px;
+    padding:12px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; white-space:pre-wrap; word-break:break-word;
+    max-height:320px; overflow:auto; color:var(--ink-dim);
+  }
+  .out.ok{ border-color:var(--outcome-good); color:var(--ink); }
+  .out.err{ border-color:var(--slash); color:#E0A99B; }
+
+  /* ---------- status bar ---------- */
+  .statusbar{
+    max-width:1180px; margin:0 auto 0; padding:0 20px 14px;
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-dim);
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--ink-faint); flex-shrink:0; }
+  .dot.on{ background:var(--outcome-good); box-shadow:0 0 8px var(--outcome-good); }
+  .statusbar button{
+    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer; padding:6px 12px; border-radius:2px;
+  }
+  .statusbar button:hover{ border-color:var(--gold); color:var(--gold-bright); }
+  .test-note{ font-size:11px; color:var(--ink-faint); width:100%; display:none; }
+
+  footer{
+    max-width:1180px; margin:0 auto; padding:36px 20px 60px; border-top:1px solid var(--line-soft);
+    font-size:11.5px; color:var(--ink-faint); line-height:1.7;
+  }
+  footer code{ color:var(--ink-dim); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="brandmark">
+    <svg class="scales" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2V22M12 6L6 6M12 6L18 6M6 6L3 12H9L6 6ZM18 6L15 12H21L18 6M4 20H20" stroke="#C9A15E" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Veri<span style="color:var(--gold-bright); font-style:italic;">dict</span>
+  </div>
+  <div class="navlinks">
+    <a href="#docket">Docket</a>
+    <a href="#how">How it works</a>
+    <a href="#jurors">Jurors</a>
+    <a href="#create">Create</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div>
+    <p class="eyebrow">Two-tier adjudication for autonomous trades</p>
+    <h1>Outcomes<br>become<br><span class="accent">accountable.</span></h1>
+    <p class="lede">
+      Agents lock GEN, submit evidence, and receive an automated outcome. If either
+      side disputes it, a staked jury decides instead — and puts its own GEN on
+      the line to do it. GenLayer checks the jury's majority against frozen
+      evidence before anyone is paid or slashed.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-fill" href="#create">Create an trade</a>
+      <a class="btn btn-outline" href="#jurors">Become a juror</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <svg class="rings" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="110" cy="110" r="95" stroke="#C9A15E" stroke-opacity=".25" stroke-width="1"/>
+      <circle cx="110" cy="110" r="72" stroke="#C9A15E" stroke-opacity=".4" stroke-width="1"/>
+      <path d="M110 55V165M110 75L82 75M110 75L138 75M82 75L68 100H96L82 75ZM138 75L124 100H152L138 75M60 160H160" stroke="#E4C27F" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="float-card top">
+      <span class="tag">Live protocol</span>
+      <p class="big" id="heroAgreementCount">—</p>
+      <p class="small">trades indexed on this contract</p>
+    </div>
+    <div class="float-card bottom">
+      <span class="tag">No relay</span>
+      <p class="big">GEN-native</p>
+      <p class="small">Settlement and slashing happen inside this contract — nothing bridges out to another chain.</p>
+    </div>
+  </div>
+</header>
+
+<div class="divider"></div>
+<div class="stripe">
+  <span class="on">GenLayer</span>
+  <span>Commit-reveal jury</span>
+  <span>Evidence snapshot</span>
+  <span>Bounded verification</span>
+  <span>Pull-payment</span>
+</div>
+<div class="divider"></div>
+
+<section id="how" class="tight">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow" style="margin-bottom:6px;">Judicial primitive</p>
+      <h2>The evidence is the law.</h2>
+    </div>
+    <p>An automated outcome resolves most trades. A dispute escalates to a jury that votes on evidence it can no longer see change.</p>
+  </div>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-num">01</div>
+      <h3>Commitment</h3>
+      <p>Two parties agree on trade terms, completion criteria, and a GEN stake — escrowed before any value moves.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">02</div>
+      <h3>Evidence</h3>
+      <p>Sources are submitted once and frozen into a snapshot — deduplicated, hashed, and never editable again.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">03</div>
+      <h3>Outcome</h3>
+      <p>GenLayer reads the frozen evidence — cross-checked against the on-chain-anchored receiving address — and returns TRADE_COMPLETED, PARTIALLY_COMPLETED, TRADE_BREACHED, or UNDETERMINED.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">04</div>
+      <h3>Appeal &amp; jury</h3>
+      <p>Either party can appeal. Staked jurors vote blind, then GenLayer checks their majority against the same evidence.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section id="docket">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow" style="margin-bottom:6px;">Public record</p>
+      <h2>Recent trades.</h2>
+    </div>
+    <button class="refresh-link" id="refreshDocketBtn">Refresh</button>
+  </div>
+  <div id="docketWrap">
+    <p class="docket-empty">Connect a wallet or press Refresh to load trades from the contract.</p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<div class="statusbar">
+  <span class="dot" id="statusDot"></span>
+  <span id="statusText">Not connected</span>
+  <button id="connectBtn">Connect wallet</button>
+  <button id="testSessionBtn">Start test session</button>
+  <span class="test-note" id="testSessionNote">
+    Test session uses a freshly generated in-browser keypair against GenLayer Studio — no real funds, resets on refresh. Use "new test session" for a different address.
+  </span>
+  <span style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:11px;">Contract: <code id="contractAddrText">—</code></span>
+</div>
+
+<section id="actions" class="tight">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow" style="margin-bottom:6px;">Docket actions</p>
+      <h2 id="create">File &amp; resolve.</h2>
+    </div>
+  </div>
+
+  <div class="panels-grid">
+
+    <div class="panel">
+      <h3>Create trade <span class="tier-mark">Tier 1</span></h3>
+      <p class="desc">You become <code>party_a</code>. Your GEN stake is escrowed now; <code>party_b</code> must match it exactly to accept.</p>
+      <label>Party B address</label>
+      <input type="text" id="partyB" placeholder="0x...">
+      <label>Trade terms</label>
+      <textarea id="tradeTerms" placeholder="Send 1 ETH to the agreed receiving address by the deadline"></textarea>
+      <label>Completion criteria</label>
+      <textarea id="acceptanceCriteria" placeholder="Full amount must arrive at the recorded receiving address"></textarea>
+      <label>Expected receiving address <span class="tier-mark">on-chain anchor</span></label>
+      <input type="text" id="expectedAddress" placeholder="0x... or bc1...">
+      <label>Expected amount (optional — blank for a best-effort swap)</label>
+      <input type="text" id="expectedAmount" placeholder="1 ETH">
+      <div class="row2">
+        <div><label>Your stake (GEN)</label><input type="text" id="stakeAmount" placeholder="1.0"></div>
+        <div><label>Deadline</label><input type="datetime-local" id="deadline"></div>
+      </div>
+      <label>Minimum evidence sources required</label>
+      <input type="text" id="minEvidenceSources" value="1">
+      <p class="hint">Default 1. Raise this for trades that need independent corroboration (e.g. more than one explorer) rather than a single link. Duplicate URLs never count twice. A TRADE_COMPLETED outcome is never accepted unless the expected receiving address actually appears in the submitted evidence.</p>
+      <button class="primary" id="createBtn">Create trade</button>
+      <div class="out" id="createOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Accept / cancel</h3>
+      <p class="desc">Only the named <code>party_b</code> can accept, by sending the exact same stake. Only <code>party_a</code> can cancel, and only before acceptance.</p>
+      <label>Trade ID</label>
+      <input type="text" id="acceptId" placeholder="trade_0">
+      <div class="row2">
+        <div><label>Stake to send (GEN)</label><input type="text" id="acceptStake" placeholder="1.0"></div>
+        <div style="align-self:end;"><button class="secondary" id="loadStakeBtn" style="margin-top:12px;">Load exact amount</button></div>
+      </div>
+      <button class="primary" id="acceptBtn">Accept (party_b)</button>
+      <button class="secondary" id="cancelBtn">Cancel (party_a)</button>
+      <div class="out" id="acceptOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Submit evidence</h3>
+      <p class="desc">Single-shot: the first successful call FREEZES the evidence set — no re-submission afterward. Either party may call this.</p>
+      <label>Trade ID</label>
+      <input type="text" id="evidenceId" placeholder="trade_0">
+      <label>Evidence URLs (comma-separated)</label>
+      <textarea id="evidenceUrls" placeholder="https://github.com/you/repo, https://example.com/report.pdf"></textarea>
+      <button class="primary" id="evidenceBtn">Lock evidence</button>
+      <div class="out" id="evidenceOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Resolve / finalize <span class="tier-mark">Tier 1</span></h3>
+      <p class="desc">Permissionless. <code>resolve_tier1</code> runs the automated outcome once evidence is locked. If nobody appeals in time, <code>finalize_unappealed</code> settles on it.</p>
+      <label>Trade ID</label>
+      <input type="text" id="resolveId" placeholder="trade_0">
+      <button class="primary" id="resolveBtn">Resolve Tier-1</button>
+      <button class="secondary" id="finalizeUnappealedBtn">Finalize (if unappealed)</button>
+      <div class="out" id="resolveOut"></div>
+    </div>
+
+    <div class="panel" id="jurors">
+      <h3>Become a juror <span class="tier-mark jury">Tier 2</span></h3>
+      <p class="desc">Stake GEN independently of any single case. Selection weight is <code>min(stake, cap) × reputation</code> — a whale can't buy unlimited odds.</p>
+      <label>Stake to add (GEN)</label>
+      <input type="text" id="jurorStake" placeholder="1.0">
+      <button class="primary" id="registerJurorBtn">Register / top up stake</button>
+      <label>Unstake amount (wei)</label>
+      <input type="text" id="unstakeAmount" placeholder="e.g. 500000000000000000">
+      <button class="secondary" id="unstakeBtn">Unstake</button>
+      <div class="out" id="jurorOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Appeal <span class="tier-mark jury">Tier 2</span></h3>
+      <p class="desc">Either party, within the appeal window, posting a bond (~20% of stake, clamped). Selects a jury against the ALREADY-LOCKED evidence — needs at least 5 staked jurors.</p>
+      <label>Trade ID</label>
+      <input type="text" id="appealId" placeholder="trade_0">
+      <label>Bond to send (GEN)</label>
+      <input type="text" id="appealBond" placeholder="0.2">
+      <button class="primary" id="appealBtn">File appeal</button>
+      <div class="out" id="appealOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Commit vote <span class="tier-mark jury">Tier 2</span></h3>
+      <p class="desc">Only if you were selected. Your vote is hashed with a private salt before sending — nobody can see or copy it until you reveal.</p>
+      <label>Trade ID</label>
+      <input type="text" id="commitId" placeholder="trade_0">
+      <div class="row2">
+        <div>
+          <label>Your vote</label>
+          <select id="commitVote">
+            <option value="TRADE_COMPLETED">TRADE_COMPLETED</option>
+            <option value="PARTIALLY_COMPLETED">PARTIALLY_COMPLETED</option>
+            <option value="TRADE_BREACHED">TRADE_BREACHED</option>
+            <option value="UNDETERMINED">UNDETERMINED</option>
+          </select>
+        </div>
+        <div><label>Private salt</label><input type="text" id="commitSalt" placeholder="any random string"></div>
+      </div>
+      <p class="hint">Save your vote + salt somewhere — you need the exact same values to reveal.</p>
+      <button class="primary" id="commitBtn">Commit</button>
+      <div class="out" id="commitOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Reveal vote <span class="tier-mark jury">Tier 2</span></h3>
+      <p class="desc">Only after the commit window closes. Must match your earlier commit exactly, or it's rejected.</p>
+      <label>Trade ID</label>
+      <input type="text" id="revealId" placeholder="trade_0">
+      <div class="row2">
+        <div>
+          <label>Your vote (same as commit)</label>
+          <select id="revealVote">
+            <option value="TRADE_COMPLETED">TRADE_COMPLETED</option>
+            <option value="PARTIALLY_COMPLETED">PARTIALLY_COMPLETED</option>
+            <option value="TRADE_BREACHED">TRADE_BREACHED</option>
+            <option value="UNDETERMINED">UNDETERMINED</option>
+          </select>
+        </div>
+        <div><label>Same salt</label><input type="text" id="revealSalt" placeholder="the exact salt you used"></div>
+      </div>
+      <button class="primary" id="revealBtn">Reveal</button>
+      <div class="out" id="revealOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Finalize jury <span class="tier-mark jury">Tier 2</span></h3>
+      <p class="desc">Permissionless, after the reveal window closes. Aggregates votes, checks the majority against frozen evidence, then applies slashing/rewards.</p>
+      <label>Trade ID</label>
+      <input type="text" id="finalizeJuryId" placeholder="trade_0">
+      <button class="primary" id="finalizeJuryBtn">Finalize jury round</button>
+      <div class="out" id="finalizeJuryOut"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Withdraw</h3>
+      <p class="desc">Sends your entire credited balance to your own wallet. The only method that ever moves GEN out of the contract.</p>
+      <button class="primary" id="withdrawBtn">Withdraw my balance</button>
+      <button class="secondary" id="checkPendingBtn">Check my pending balance</button>
+      <div class="out" id="withdrawOut"></div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="tight">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow" style="margin-bottom:6px;">Look up / verify</p>
+      <h2>Read the record.</h2>
+    </div>
+    <p>Read-only calls — no wallet or GEN required.</p>
+  </div>
+  <div class="panels-grid">
+    <div class="panel">
+      <h3>By trade</h3>
+      <label>Trade ID</label>
+      <input type="text" id="readId" placeholder="trade_0">
+      <button class="secondary" id="readAgreementBtn">Get trade</button>
+      <button class="secondary" id="verifySelectionBtn">Verify jury selection</button>
+      <button class="secondary" id="totalAgreementsBtn" style="margin-top:16px;">Total trades</button>
+      <button class="secondary" id="contractBalanceBtn">Contract balance</button>
+    </div>
+    <div class="panel">
+      <h3>By address</h3>
+      <label>Address</label>
+      <input type="text" id="readAddr" placeholder="0x...">
+      <button class="secondary" id="readJurorBtn">Get juror record</button>
+      <button class="secondary" id="readPendingBtn">Get pending withdrawal</button>
+    </div>
+  </div>
+  <div class="out" id="readOut" style="margin-top:1px;"></div>
+</section>
+
+<footer>
+  TradeAnchor — a two-tier GenLayer adjudication protocol. This page is a no-build
+  reference frontend (<code>genlayer-js</code>, no bundler). Edit
+  <code>CONTRACT_ADDRESS</code> in the script below after deploying
+  <code>contract.py</code>. Full trust model in <code>docs/ARCHITECTURE.md</code>
+  and the class docstring in <code>contract.py</code>, including known v1
+  limitations disclosed up front.
+</footer>
+
+<script type="module">
+
+import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
+import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
+
+// ------------------------------------------------------------------
+// EDIT THIS after you deploy TradeAnchor's contract.py — paste the
+// deployed address here (from the Studio/explorer "Deployed at" field).
+// ------------------------------------------------------------------
+const CONTRACT_ADDRESS = "0x8ef5Ead3781315b533b488A19F249a92De5cB663";
+
+document.getElementById('contractAddrText').textContent = CONTRACT_ADDRESS;
+
+let client = null;
+let account = null;
+
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const connectBtn = document.getElementById('connectBtn');
+const testSessionBtn = document.getElementById('testSessionBtn');
+const testSessionNote = document.getElementById('testSessionNote');
+
+function setStatus(connected, label){
+  statusDot.classList.toggle('on', connected);
+  statusText.textContent = label;
+}
+
+async function connectWallet(){
+  if (!window.ethereum) {
+    setStatus(false, 'No injected wallet found — install MetaMask, or use "start test session" instead');
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    account = accounts[0];
+    client = createClient({ chain: studionet, account });
+    setStatus(true, `Connected (MetaMask) · ${account.slice(0,6)}…${account.slice(-4)}`);
+    connectBtn.textContent = 'reconnect';
+    testSessionNote.style.display = 'none';
+  } catch (err) {
+    setStatus(false, 'Connection rejected');
+  }
+}
+connectBtn.addEventListener('click', connectWallet);
+
+function startTestSession(){
+  const generated = createAccount();
+  account = generated.address ?? generated;
+  client = createClient({ chain: studionet, account: generated });
+  setStatus(true, `Connected (test session) · ${account.slice(0,6)}…${account.slice(-4)}`);
+  testSessionBtn.textContent = 'new test session';
+  testSessionNote.style.display = 'block';
+}
+testSessionBtn.addEventListener('click', startTestSession);
+
+// Read-only client, usable even without a wallet connection.
+const readClient = createClient({ chain: studionet });
+
+// ------------------------------------------------------------------
+// Hero live stat + recent-trades docket. Both are read-only and
+// work without a connected wallet.
+// ------------------------------------------------------------------
+function outcomePillClass(status, outcome){
+  if (status !== 'finalized') return 'pill-open';
+  if (outcome === 'TRADE_COMPLETED') return 'pill-good';
+  if (outcome === 'TRADE_BREACHED') return 'pill-bad';
+  return 'pill-neutral';
+}
+
+async function loadDocket(){
+  const heroCount = document.getElementById('heroAgreementCount');
+  const wrap = document.getElementById('docketWrap');
+  try {
+    const total = Number(await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'total_trades', args: [] }));
+    heroCount.textContent = String(total);
+    if (total === 0) {
+      wrap.innerHTML = '';
+      wrap.appendChild(Object.assign(document.createElement('p'), { className: 'docket-empty', textContent: 'No trades yet — the first one filed here will show up in this table.' }));
+      return;
+    }
+    const start = Math.max(0, total - 6);
+    const rows = [];
+    for (let i = total - 1; i >= start; i--) {
+      try {
+        const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_trade', args: [`trade_${i}`] });
+        rows.push(typeof raw === 'string' ? JSON.parse(raw) : raw);
+      } catch (e) { /* skip a row that fails to load */ }
+    }
+    const table = document.createElement('table');
+    table.className = 'docket';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Case</th><th>Status</th><th>Outcome</th><th>Objective</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (const a of rows) {
+      const tr = document.createElement('tr');
+      const tdId = document.createElement('td'); tdId.textContent = a.trade_id; tr.appendChild(tdId);
+      const tdStatus = document.createElement('td'); tdStatus.textContent = a.status; tr.appendChild(tdStatus);
+      const tdOutcome = document.createElement('td');
+      const pill = document.createElement('span');
+      pill.className = 'pill ' + outcomePillClass(a.status, a.final_outcome || a.tier1_outcome);
+      pill.textContent = a.final_outcome || a.tier1_outcome || 'pending';
+      tdOutcome.appendChild(pill);
+      tr.appendChild(tdOutcome);
+      const tdObj = document.createElement('td');
+      tdObj.textContent = (a.trade_terms || '').slice(0, 70) + ((a.trade_terms || '').length > 70 ? '…' : '');
+      tr.appendChild(tdObj);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrap.innerHTML = '';
+    wrap.appendChild(table);
+  } catch (err) {
+    heroCount.textContent = '—';
+    wrap.innerHTML = '';
+    wrap.appendChild(Object.assign(document.createElement('p'), { className: 'docket-empty', textContent: 'Could not load the docket — the contract address may not be set yet, or the network is unreachable.' }));
+  }
+}
+document.getElementById('refreshDocketBtn').addEventListener('click', loadDocket);
+loadDocket();
+
+// ------------------------------------------------------------------
+// Every dynamic value on this page goes through textContent, never
+// innerHTML, so contract output can never be parsed as markup.
+// ------------------------------------------------------------------
+function showOut(el, text, kind){
+  el.style.display = 'block';
+  el.textContent = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
+  el.classList.remove('ok', 'err');
+  if (kind) el.classList.add(kind);
+}
+
+function requireClient(out){
+  if (!client) {
+    showOut(out, 'Connect a wallet first (MetaMask or test session).', 'err');
+    return false;
+  }
+  return true;
+}
+
+function localInputToIsoUtc(localValue){
+  const d = new Date(localValue);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function defaultDeadlineLocalValue(){
+  const future = new Date(Date.now() + 3 * 3600000);
+  const tzOffsetMs = future.getTimezoneOffset() * 60000;
+  const local = new Date(future.getTime() - tzOffsetMs);
+  return local.toISOString().slice(0, 16);
+}
+document.getElementById('deadline').value = defaultDeadlineLocalValue();
+
+function parseCommaList(raw){
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Extract the contract method's actual return value from a GenLayer
+ * transaction receipt (same unwrapping logic as TrueStake's frontend).
+ */
+function extractReturnValue(receipt){
+  const payload = receipt?.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
+  if (payload === undefined) return null;
+  let value = payload;
+  for (let i = 0; i < 3; i++) {
+    if (typeof value !== 'string') break;
+    const trimmed = value.trim();
+    const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"');
+    if (!looksLikeJson) break;
+    try { value = JSON.parse(value); } catch (e) { break; }
+  }
+  return value;
+}
+
+// GEN <-> wei helpers. Contract deals only in wei (1 GEN = 10^18 wei),
+// as an exact BigInt — never a floating-point JS number.
+const WEI_PER_GEN = 1000000000000000000n;
+
+function genToWei(genStr){
+  const trimmed = String(genStr).trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split('.');
+  if (parts.length > 2) return null;
+  const whole = parts[0] || '0';
+  let frac = parts[1] || '';
+  if (!/^\d+$/.test(whole) || (frac && !/^\d+$/.test(frac))) return null;
+  if (frac.length > 18) return null;
+  frac = frac.padEnd(18, '0');
+  try { return BigInt(whole) * WEI_PER_GEN + BigInt(frac || '0'); }
+  catch (e) { return null; }
+}
+
+function weiToGenString(weiValue){
+  let wei;
+  try { wei = BigInt(weiValue); } catch (e) { return String(weiValue); }
+  const whole = wei / WEI_PER_GEN;
+  const frac = (wei % WEI_PER_GEN).toString().padStart(18, '0').replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole.toString();
+}
+
+/**
+ * sha256 hex of "vote:salt" — MUST exactly match the contract's
+ * `hashlib.sha256(f"{vote}:{salt}".encode()).hexdigest()` in
+ * commit_vote/reveal_vote.
+ */
+async function commitHash(vote, salt){
+  const data = new TextEncoder().encode(`${vote}:${salt}`);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function writeAndReport(out, label, functionName, args, valueWei){
+  try {
+    showOut(out, `Submitting ${label}…`);
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName, args, value: valueWei ?? 0n,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Done.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+    return result;
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+    return null;
+  }
+}
+
+// ---------- 1: Create Trade ----------
+document.getElementById('createBtn').addEventListener('click', async () => {
+  const out = document.getElementById('createOut');
+  if (!requireClient(out)) return;
+  const partyB = document.getElementById('partyB').value.trim();
+  const tradeTerms = document.getElementById('tradeTerms').value.trim();
+  const completionCriteria = document.getElementById('acceptanceCriteria').value.trim();
+  const expectedAddress = document.getElementById('expectedAddress').value.trim();
+  const expectedAmount = document.getElementById('expectedAmount').value.trim();
+  const stakeGen = document.getElementById('stakeAmount').value.trim();
+  const deadlineIso = localInputToIsoUtc(document.getElementById('deadline').value);
+  const stakeWei = genToWei(stakeGen);
+  const minSourcesRaw = document.getElementById('minEvidenceSources').value.trim();
+  const minSources = parseInt(minSourcesRaw, 10);
+
+  if (!partyB) return showOut(out, "Enter party B's address.", 'err');
+  if (!tradeTerms) return showOut(out, 'Enter the trade terms.', 'err');
+  if (!completionCriteria) return showOut(out, 'Enter the completion criteria.', 'err');
+  if (!expectedAddress) return showOut(out, 'Enter the expected receiving address.', 'err');
+  if (stakeWei === null || stakeWei <= 0n) return showOut(out, 'Enter a valid positive stake in GEN.', 'err');
+  if (!deadlineIso) return showOut(out, 'Enter a valid deadline.', 'err');
+  if (!Number.isInteger(minSources) || minSources < 1) return showOut(out, 'Minimum evidence sources must be a whole number of at least 1.', 'err');
+
+  const id = await writeAndReport(out, 'create_trade', 'create_trade', [partyB, tradeTerms, completionCriteria, expectedAddress, expectedAmount, deadlineIso, minSources], stakeWei);
+  if (id) {
+    for (const el of ['acceptId','evidenceId','resolveId','appealId','readId']) {
+      document.getElementById(el).value = String(id);
+    }
+    document.getElementById('acceptStake').value = stakeGen;
+  }
+});
+
+// ---------- 2: Accept / Cancel ----------
+document.getElementById('loadStakeBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  const id = document.getElementById('acceptId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID first.', 'err');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_trade', args: [id] });
+    const trade = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    document.getElementById('acceptStake').value = weiToGenString(trade.stake_amount);
+    showOut(out, `Loaded: ${weiToGenString(trade.stake_amount)} GEN`, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+
+document.getElementById('acceptBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('acceptId').value.trim();
+  const stakeWei = genToWei(document.getElementById('acceptStake').value.trim());
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  if (stakeWei === null || stakeWei <= 0n) return showOut(out, 'Enter a valid stake (use "load exact amount").', 'err');
+  await writeAndReport(out, 'accept_trade', 'accept_trade', [id], stakeWei);
+});
+
+document.getElementById('cancelBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('acceptId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  await writeAndReport(out, 'cancel_trade', 'cancel_trade', [id]);
+});
+
+// ---------- 3: Submit Evidence ----------
+document.getElementById('evidenceBtn').addEventListener('click', async () => {
+  const out = document.getElementById('evidenceOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('evidenceId').value.trim();
+  const urls = parseCommaList(document.getElementById('evidenceUrls').value);
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  if (urls.length === 0) return showOut(out, 'Enter at least one evidence URL.', 'err');
+  await writeAndReport(out, 'submit_evidence', 'submit_evidence', [id, urls]);
+});
+
+// ---------- 4: Tier-1 Resolve / Finalize ----------
+document.getElementById('resolveBtn').addEventListener('click', async () => {
+  const out = document.getElementById('resolveOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('resolveId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  await writeAndReport(out, 'resolve_tier1', 'resolve_tier1', [id]);
+});
+document.getElementById('finalizeUnappealedBtn').addEventListener('click', async () => {
+  const out = document.getElementById('resolveOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('resolveId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  await writeAndReport(out, 'finalize_unappealed', 'finalize_unappealed', [id]);
+});
+
+// ---------- 5: Juror registry ----------
+document.getElementById('registerJurorBtn').addEventListener('click', async () => {
+  const out = document.getElementById('jurorOut');
+  if (!requireClient(out)) return;
+  const wei = genToWei(document.getElementById('jurorStake').value.trim());
+  if (wei === null || wei <= 0n) return showOut(out, 'Enter a valid positive stake in GEN.', 'err');
+  await writeAndReport(out, 'register_juror', 'register_juror', [], wei);
+});
+document.getElementById('unstakeBtn').addEventListener('click', async () => {
+  const out = document.getElementById('jurorOut');
+  if (!requireClient(out)) return;
+  const amount = document.getElementById('unstakeAmount').value.trim();
+  if (!amount) return showOut(out, 'Enter an amount in wei.', 'err');
+  await writeAndReport(out, 'unstake_juror', 'unstake_juror', [amount]);
+});
+
+// ---------- 6: Appeal ----------
+document.getElementById('appealBtn').addEventListener('click', async () => {
+  const out = document.getElementById('appealOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('appealId').value.trim();
+  const wei = genToWei(document.getElementById('appealBond').value.trim());
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  if (wei === null || wei <= 0n) return showOut(out, 'Enter the exact bond amount in GEN (20% of the trade stake, clamped).', 'err');
+  await writeAndReport(out, 'appeal', 'appeal', [id], wei);
+});
+
+// ---------- 7: Commit ----------
+document.getElementById('commitBtn').addEventListener('click', async () => {
+  const out = document.getElementById('commitOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('commitId').value.trim();
+  const vote = document.getElementById('commitVote').value;
+  const salt = document.getElementById('commitSalt').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  if (!salt) return showOut(out, 'Enter a private salt (any random string) — you will need it again to reveal.', 'err');
+  const hash = await commitHash(vote, salt);
+  await writeAndReport(out, 'commit_vote', 'commit_vote', [id, hash]);
+});
+
+// ---------- 8: Reveal ----------
+document.getElementById('revealBtn').addEventListener('click', async () => {
+  const out = document.getElementById('revealOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('revealId').value.trim();
+  const vote = document.getElementById('revealVote').value;
+  const salt = document.getElementById('revealSalt').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  if (!salt) return showOut(out, 'Enter the exact salt you committed with.', 'err');
+  await writeAndReport(out, 'reveal_vote', 'reveal_vote', [id, vote, salt]);
+});
+
+// ---------- 9: Finalize Jury ----------
+document.getElementById('finalizeJuryBtn').addEventListener('click', async () => {
+  const out = document.getElementById('finalizeJuryOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('finalizeJuryId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  await writeAndReport(out, 'finalize_jury', 'finalize_jury', [id]);
+});
+
+// ---------- 10: Withdraw ----------
+document.getElementById('withdrawBtn').addEventListener('click', async () => {
+  const out = document.getElementById('withdrawOut');
+  if (!requireClient(out)) return;
+  await writeAndReport(out, 'withdraw', 'withdraw', []);
+});
+document.getElementById('checkPendingBtn').addEventListener('click', async () => {
+  const out = document.getElementById('withdrawOut');
+  if (!account) return showOut(out, 'Connect a wallet first.', 'err');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_pending_withdrawal', args: [account] });
+    showOut(out, `Pending: ${weiToGenString(raw)} GEN (${raw} wei)`, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+
+// ---------- Look up / verify (read-only) ----------
+document.getElementById('readAgreementBtn').addEventListener('click', async () => {
+  const out = document.getElementById('readOut');
+  const id = document.getElementById('readId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_trade', args: [id] });
+    showOut(out, typeof raw === 'string' ? JSON.parse(raw) : raw, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+document.getElementById('verifySelectionBtn').addEventListener('click', async () => {
+  const out = document.getElementById('readOut');
+  const id = document.getElementById('readId').value.trim();
+  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'verify_jury_selection', args: [id] });
+    showOut(out, typeof raw === 'string' ? JSON.parse(raw) : raw, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+document.getElementById('readJurorBtn').addEventListener('click', async () => {
+  const out = document.getElementById('readOut');
+  const addr = document.getElementById('readAddr').value.trim();
+  if (!addr) return showOut(out, 'Enter an address.', 'err');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_juror', args: [addr] });
+    showOut(out, typeof raw === 'string' ? JSON.parse(raw) : raw, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+document.getElementById('readPendingBtn').addEventListener('click', async () => {
+  const out = document.getElementById('readOut');
+  const addr = document.getElementById('readAddr').value.trim();
+  if (!addr) return showOut(out, 'Enter an address.', 'err');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_pending_withdrawal', args: [addr] });
+    showOut(out, `${weiToGenString(raw)} GEN (${raw} wei)`, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+document.getElementById('totalAgreementsBtn').addEventListener('click', async () => {
+  const out = document.getElementById('readOut');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'total_trades', args: [] });
+    showOut(out, `Total trades: ${raw}`, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+document.getElementById('contractBalanceBtn').addEventListener('click', async () => {
+  const out = document.getElementById('readOut');
+  try {
+    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_contract_balance', args: [] });
+    showOut(out, `Contract balance: ${weiToGenString(raw)} GEN (${raw} wei)`, 'ok');
+  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+});
+</script>
+</body>
+</html>
