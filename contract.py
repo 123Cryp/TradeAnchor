@@ -3,6 +3,7 @@ from genlayer import *
 import hashlib
 import json
 import datetime
+from urllib.parse import urlsplit
 
 
 # Paying GEN out to an EOA wallet goes through the same EVM
@@ -184,6 +185,50 @@ class TradeAnchor(gl.Contract):
         self.pending_withdrawals[key] = u256(int(current) + int(amount))
 
     @staticmethod
+    def _evidence_host(url: str) -> str:
+        """
+        Returns the lowercase hostname of an https URL, or "" if the URL
+        is not acceptable evidence: non-https scheme, embedded
+        credentials (userinfo such as https://allowed.com@evil.example/),
+        no hostname, or an unparsable port. Built on urllib.parse rather
+        than string splitting for the same reason FlightShield's
+        _extract_domain was rewritten after a steward finding.
+        """
+        try:
+            parts = urlsplit(str(url).strip())
+            if parts.scheme.lower() != "https":
+                return ""
+            if parts.username is not None or parts.password is not None:
+                return ""
+            _ = parts.port
+            host = (parts.hostname or "").lower().rstrip(".")
+        except Exception:
+            return ""
+        return host
+
+    @staticmethod
+    def _normalize_domains(domains_csv: str) -> list:
+        out = []
+        for raw in str(domains_csv or "").split(","):
+            d = raw.strip().lower().rstrip(".")
+            if not d:
+                continue
+            if "/" in d or "@" in d or ":" in d or " " in d or "." not in d:
+                raise gl.vm.UserError(f"Invalid evidence domain: {raw.strip()!r}")
+            if d not in out:
+                out.append(d)
+        return out
+
+    @staticmethod
+    def _host_allowed(host: str, allowed: list) -> bool:
+        if not host:
+            return False
+        for d in allowed:
+            if host == d or host.endswith("." + d):
+                return True
+        return False
+
+    @staticmethod
     def _parse_iso(ts: str) -> datetime.datetime:
         dt = datetime.datetime.fromisoformat(ts)
         if dt.tzinfo is None:
@@ -231,6 +276,7 @@ class TradeAnchor(gl.Contract):
         completion_criteria: str,
         expected_receiving_address: str,
         expected_amount: str,
+        allowed_evidence_domains: str,
         deadline_iso: str,
         min_evidence_sources: int = 1,
     ) -> str:
@@ -254,6 +300,17 @@ class TradeAnchor(gl.Contract):
         off-chain leg has no fixed amount to anchor (e.g. a
         best-effort swap); an empty `expected_receiving_address` is
         never allowed - every OTC trade has a destination address.
+
+        `allowed_evidence_domains` is a comma-separated list of
+        hostnames (for example "etherscan.io,basescan.org") recorded
+        on-chain at creation. `party_b` sees it before matching the
+        stake in `accept_trade`, so both parties have agreed to it
+        before any evidence exists. `submit_evidence` rejects any URL
+        that is not https, carries embedded credentials, or whose host
+        is not one of these domains or a subdomain of one. This closes
+        the gap where a party hosts a self-written page containing the
+        expected address and submits it as evidence. At least one
+        domain is required.
 
         `min_evidence_sources` (default 1) is the number of DISTINCT
         URLs `submit_evidence` must receive before it will lock the
@@ -289,6 +346,10 @@ class TradeAnchor(gl.Contract):
         if not expected_receiving_address or not expected_receiving_address.strip():
             raise gl.vm.UserError("expected_receiving_address must not be empty")
 
+        domains = self._normalize_domains(allowed_evidence_domains)
+        if not domains:
+            raise gl.vm.UserError("allowed_evidence_domains must list at least one domain")
+
         min_sources = int(min_evidence_sources)
         if min_sources < 1:
             raise gl.vm.UserError("min_evidence_sources must be at least 1")
@@ -304,6 +365,7 @@ class TradeAnchor(gl.Contract):
             "completion_criteria": completion_criteria,
             "expected_receiving_address": expected_receiving_address.strip(),
             "expected_amount": expected_amount.strip() if expected_amount else "",
+            "allowed_evidence_domains": domains,
             "stake_amount": str(int(stake_amount)),
             "deadline": deadline.isoformat(),
             "min_evidence_sources": min_sources,
@@ -408,6 +470,13 @@ class TradeAnchor(gl.Contract):
         normalized_urls = sorted({str(u).strip() for u in source_urls if str(u).strip()})
         if not normalized_urls:
             raise gl.vm.UserError("Must submit at least one non-empty evidence URL")
+
+        allowed = list(trade["allowed_evidence_domains"])
+        for u in normalized_urls:
+            if not self._host_allowed(self._evidence_host(u), allowed):
+                raise gl.vm.UserError(
+                    f"Evidence URL not allowed for this trade (https and one of {allowed} required): {u}"
+                )
 
         required = int(trade.get("min_evidence_sources", 1))
         if len(normalized_urls) < required:
