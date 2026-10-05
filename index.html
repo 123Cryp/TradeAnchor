@@ -1,1014 +1,734 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>TradeAnchor — The jury-backed adjudication protocol</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TradeAnchor — OTC trade disputes, settled on evidence</title>
+<meta name="theme-color" content="#7C6FE8">
 <style>
   :root{
-    --bg:#0B0906;
-    --bg-raised:#141110;
-    --bg-sunken:#080705;
-    --line:rgba(237,225,204,0.12);
-    --line-soft:rgba(237,225,204,0.07);
-    --ink:#F1EAE0;
-    --ink-dim:#A79A85;
-    --ink-faint:#756B5C;
-    --gold:#C9A15E;
-    --gold-bright:#E4C27F;
-    --slash:#B0553F;
-    --outcome-good:#7DA187;
-    --outcome-bad:#B0553F;
-    --outcome-neutral:#8C8272;
+    --paper:#FFFFFF; --bg:#F7F5FC; --ink:#15121E; --ink-dim:#5B556B; --ink-faint:#8D879C;
+    --line:#E6E1EF; --iris:#7C6FE8; --iris-deep:#5F51D6; --iris-soft:#EFECFD;
+    --mint:#2FA67F; --mint-soft:#E5F6EF; --coral:#D2564A; --coral-soft:#FCEBE9;
+    --gold:#B8860B; --gold-soft:#FBF3DC; --radius:16px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
-  html{ color-scheme:dark; }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:var(--bg);
-    color:var(--ink);
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
-    -webkit-font-smoothing:antialiased;
-  }
-  a{color:var(--gold-bright);}
-  code{ font-family:'IBM Plex Mono',monospace; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;
+       padding-bottom:calc(76px + env(safe-area-inset-bottom));min-height:100vh}
+  a{color:var(--iris-deep)}
+  code,.mono{font-family:var(--mono);font-size:.88em}
+  h1,h2,h3{margin:0;line-height:1.2;letter-spacing:-.01em}
+  h1{font-size:clamp(28px,6vw,42px)} h2{font-size:22px} h3{font-size:16px}
+  p{margin:0 0 10px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px}
 
-  /* ---------- top nav ---------- */
-  nav.topnav{
-    max-width:1180px;
-    margin:0 auto;
-    padding:22px 20px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    border-bottom:1px solid var(--line-soft);
-  }
-  .brandmark{
-    display:flex; align-items:center; gap:10px;
-    font-family:'Fraunces',serif; font-weight:600; font-size:19px; letter-spacing:.01em;
-  }
-  .brandmark .scales{ width:22px; height:22px; flex-shrink:0; }
-  .navlinks{ display:flex; gap:26px; font-size:13.5px; color:var(--ink-dim); }
-  .navlinks a{ color:var(--ink-dim); text-decoration:none; }
-  .navlinks a:hover{ color:var(--gold-bright); }
-  @media (max-width:640px){ .navlinks{ display:none; } }
+  header.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);
+             border-bottom:1px solid var(--line)}
+  header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:10px;height:58px}
+  .brand{font-weight:800;font-size:19px;letter-spacing:-.02em;text-decoration:none;color:var(--ink)}
+  .brand span{color:var(--iris)}
+  .status-pill{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--paper);
+               border-radius:999px;padding:7px 12px;font-size:13px;color:var(--ink-dim);cursor:pointer;max-width:60vw}
+  .status-pill .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:#C9C4D6;flex:none}
+  .dot.on{background:var(--mint);box-shadow:0 0 0 3px var(--mint-soft)}
 
-  /* ---------- hero ---------- */
-  header.hero{
-    max-width:1180px;
-    margin:0 auto;
-    padding:52px 20px 40px;
-    position:relative;
-    display:grid;
-    grid-template-columns:1.15fr 0.85fr;
-    gap:32px;
-  }
-  @media (max-width:900px){ header.hero{ grid-template-columns:1fr; } }
-  .eyebrow{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11.5px;
-    letter-spacing:.14em;
-    text-transform:uppercase;
-    color:var(--gold);
-    margin:0 0 18px;
-  }
-  h1{
-    font-family:'Fraunces',serif;
-    font-weight:500;
-    font-size:clamp(38px,6.4vw,60px);
-    line-height:1.04;
-    letter-spacing:-.01em;
-    margin:0 0 20px;
-    color:var(--ink);
-  }
-  h1 .accent{ color:var(--gold-bright); font-style:italic; }
-  .lede{
-    font-size:16.5px;
-    line-height:1.65;
-    color:var(--ink-dim);
-    max-width:520px;
-    margin:0 0 26px;
-  }
-  .hero-ctas{ display:flex; gap:12px; flex-wrap:wrap; }
-  .btn{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12.5px;
-    letter-spacing:.03em;
-    padding:12px 22px;
-    border-radius:2px;
-    cursor:pointer;
-    border:1px solid var(--gold);
-    text-decoration:none;
-    display:inline-block;
-  }
-  .btn-fill{ background:var(--gold); color:#1A140A; font-weight:600; }
-  .btn-fill:hover{ background:var(--gold-bright); }
-  .btn-outline{ background:transparent; color:var(--ink); border-color:var(--line); }
-  .btn-outline:hover{ border-color:var(--gold); color:var(--gold-bright); }
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);border-top:1px solid var(--line);
+           padding-bottom:env(safe-area-inset-bottom)}
+  nav.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 8px}
+  .tab-link{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;
+            text-decoration:none;color:var(--ink-faint);font-size:12px;font-weight:600}
+  .tab-link svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .tab-link.active{color:var(--iris-deep);background:var(--iris-soft)}
 
-  .hero-visual{ position:relative; min-height:280px; display:flex; align-items:center; justify-content:center; }
-  .hero-visual .rings{ width:100%; max-width:280px; opacity:.85; }
-  .float-card{
-    position:absolute;
-    background:var(--bg-raised);
-    border:1px solid var(--line);
-    border-radius:2px;
-    padding:14px 16px;
-    font-family:'IBM Plex Mono',monospace;
-    max-width:230px;
-  }
-  .float-card .tag{
-    display:inline-block; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
-    color:var(--gold); border:1px solid var(--gold); padding:2px 7px; margin-bottom:8px;
-  }
-  .float-card .big{ font-family:'Fraunces',serif; font-size:20px; color:var(--ink); margin:0 0 4px; }
-  .float-card .small{ font-size:11px; color:var(--ink-faint); line-height:1.5; }
-  .float-card.top{ top:-6px; right:0; }
-  .float-card.bottom{ bottom:6px; left:0; }
-  @media (max-width:900px){ .float-card{ position:static; margin:10px auto; max-width:320px; } }
+  .route{display:none;padding:22px 0 30px}
+  .route.active{display:block}
 
-  .divider{ max-width:1180px; margin:0 auto; border-top:1px solid var(--line-soft); }
+  .hero{padding:8px 0 20px}
+  .hero p{color:var(--ink-dim);max-width:560px;margin-top:10px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 6px}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px}
+  .stat b{display:block;font-size:22px} .stat span{font-size:12px;color:var(--ink-faint)}
 
-  /* ---------- ticker strip ---------- */
-  .stripe{
-    max-width:1180px; margin:0 auto; padding:16px 20px;
-    display:flex; flex-wrap:wrap; gap:10px 28px;
-    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;
-    text-transform:uppercase; color:var(--ink-faint);
-  }
-  .stripe span.on{ color:var(--gold); }
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .card.link{display:block;text-decoration:none;color:inherit}
+  .card.link:active{background:var(--iris-soft)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .muted{color:var(--ink-dim)} .faint{color:var(--ink-faint);font-size:13px}
+  .terms{margin:8px 0;word-break:break-word}
 
-  /* ---------- sections ---------- */
-  section{ max-width:1180px; margin:0 auto; padding:54px 20px; }
-  section.tight{ padding-top:34px; padding-bottom:34px; }
-  .section-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin-bottom:32px; flex-wrap:wrap; }
-  .section-head h2{
-    font-family:'Fraunces',serif; font-weight:500; font-size:clamp(24px,3.4vw,32px);
-    margin:6px 0 0; color:var(--ink);
-  }
-  .section-head p{ font-size:14px; color:var(--ink-dim); max-width:420px; margin:0; line-height:1.6; }
+  .pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+  .pill.open{background:var(--iris-soft);color:var(--iris-deep)}
+  .pill.good{background:var(--mint-soft);color:var(--mint)}
+  .pill.bad{background:var(--coral-soft);color:var(--coral)}
+  .pill.warn{background:var(--gold-soft);color:var(--gold)}
+  .pill.neutral{background:#EEECF3;color:var(--ink-dim)}
 
-  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); }
-  @media (max-width:800px){ .steps{ grid-template-columns:repeat(2,1fr); } }
-  .step-card{ background:var(--bg); padding:26px 22px; }
-  .step-num{ font-family:'IBM Plex Mono',monospace; color:var(--gold); font-size:13px; margin-bottom:14px; }
-  .step-card h3{ font-family:'Fraunces',serif; font-weight:500; font-size:19px; margin:0 0 10px; }
-  .step-card p{ font-size:13.5px; color:var(--ink-dim); line-height:1.55; margin:0; }
+  label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}
+  .hint{font-size:12.5px;color:var(--ink-faint);margin:6px 0 0}
+  input,textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);
+                        border-radius:12px;padding:12px;outline:none}
+  input:focus,textarea:focus,select:focus{border-color:var(--iris);box-shadow:0 0 0 3px var(--iris-soft)}
+  textarea{min-height:92px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){.grid2{grid-template-columns:1fr}}
 
-  /* ---------- recent trades table ---------- */
-  table.docket{ width:100%; border-collapse:collapse; font-size:13px; }
-  table.docket th{
-    text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em;
-    text-transform:uppercase; color:var(--ink-faint); padding:0 10px 10px; border-bottom:1px solid var(--line);
-  }
-  table.docket td{ padding:12px 10px; border-bottom:1px solid var(--line-soft); color:var(--ink); vertical-align:top; }
-  table.docket tr:last-child td{ border-bottom:none; }
-  .pill{ display:inline-block; padding:3px 9px; border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; border:1px solid; }
-  .pill-open{ color:var(--ink-dim); border-color:var(--line); }
-  .pill-good{ color:var(--outcome-good); border-color:var(--outcome-good); }
-  .pill-bad{ color:var(--outcome-bad); border-color:var(--outcome-bad); }
-  .pill-neutral{ color:var(--outcome-neutral); border-color:var(--outcome-neutral); }
-  .docket-empty{ color:var(--ink-faint); font-size:13px; font-family:'IBM Plex Mono',monospace; }
-  .refresh-link{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--gold); background:none; border:1px solid var(--gold); padding:6px 12px; cursor:pointer; }
+  button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:13px 16px;cursor:pointer;
+         background:var(--iris);color:#fff;width:100%;margin-top:14px}
+  button:active{background:var(--iris-deep)}
+  button.secondary{background:var(--iris-soft);color:var(--iris-deep)}
+  button.ghost{background:transparent;color:var(--iris-deep);border:1px solid var(--line)}
+  button.danger{background:var(--coral-soft);color:var(--coral)}
+  button:disabled{opacity:.5;cursor:default}
+  .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .btnrow button{margin-top:14px}
 
-  /* ---------- action panels ---------- */
-  .panels-grid{ display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); }
-  @media (max-width:920px){ .panels-grid{ grid-template-columns:1fr; } }
-  .panel{ background:var(--bg); padding:24px; }
-  .panel h3{
-    font-family:'Fraunces',serif; font-weight:500; font-size:18px; margin:0 0 4px; color:var(--ink);
-    display:flex; align-items:baseline; gap:10px;
-  }
-  .panel .tier-mark{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--gold); border:1px solid var(--gold); padding:1px 7px; }
-  .panel .tier-mark.jury{ color:var(--slash); border-color:var(--slash); }
-  .panel .desc{ font-size:12.5px; color:var(--ink-dim); margin:8px 0 16px; line-height:1.55; }
-  label{
-    display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.05em;
-    text-transform:uppercase; color:var(--ink-faint); margin:12px 0 6px;
-  }
-  label:first-of-type{ margin-top:0; }
-  input[type=text], input[type=datetime-local], textarea, select{
-    width:100%; background:var(--bg-sunken); border:1px solid var(--line); border-radius:2px;
-    color:var(--ink); font-family:'Inter',sans-serif; font-size:13.5px; padding:9px 10px;
-  }
-  textarea{ font-family:'IBM Plex Mono',monospace; font-size:12px; resize:vertical; min-height:58px; }
-  input:focus, textarea:focus, select:focus{ outline:1px solid var(--gold); outline-offset:1px; }
-  .hint{ font-size:11px; color:var(--ink-faint); margin-top:4px; line-height:1.5; }
-  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .out{display:none;margin-top:12px;border-radius:12px;padding:12px;font-family:var(--mono);font-size:12.5px;
+       white-space:pre-wrap;word-break:break-word;background:#F1EFF7;color:var(--ink-dim)}
+  .out.ok{background:var(--mint-soft);color:#14684C} .out.err{background:var(--coral-soft);color:#9B2F25}
 
-  button.primary, button.secondary{
-    font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.03em; text-transform:uppercase;
-    padding:10px 18px; border-radius:2px; cursor:pointer; margin-top:16px; margin-right:8px; border:1px solid;
-  }
-  button.primary{ background:var(--gold); border-color:var(--gold); color:#1A140A; font-weight:600; }
-  button.primary:hover{ background:var(--gold-bright); border-color:var(--gold-bright); }
-  button.secondary{ background:none; border-color:var(--line); color:var(--ink-dim); }
-  button.secondary:hover{ border-color:var(--slash); color:var(--slash); }
-
-  .out{
-    display:none; margin-top:14px; background:var(--bg-sunken); border:1px solid var(--line); border-radius:2px;
-    padding:12px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; white-space:pre-wrap; word-break:break-word;
-    max-height:320px; overflow:auto; color:var(--ink-dim);
-  }
-  .out.ok{ border-color:var(--outcome-good); color:var(--ink); }
-  .out.err{ border-color:var(--slash); color:#E0A99B; }
-
-  /* ---------- status bar ---------- */
-  .statusbar{
-    max-width:1180px; margin:0 auto 0; padding:0 20px 14px;
-    display:flex; flex-wrap:wrap; align-items:center; gap:10px;
-    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-dim);
-  }
-  .dot{ width:7px; height:7px; border-radius:50%; background:var(--ink-faint); flex-shrink:0; }
-  .dot.on{ background:var(--outcome-good); box-shadow:0 0 8px var(--outcome-good); }
-  .statusbar button{
-    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
-    font-family:'IBM Plex Mono',monospace; font-size:11px; cursor:pointer; padding:6px 12px; border-radius:2px;
-  }
-  .statusbar button:hover{ border-color:var(--gold); color:var(--gold-bright); }
-  .test-note{ font-size:11px; color:var(--ink-faint); width:100%; display:none; }
-
-  footer{
-    max-width:1180px; margin:0 auto; padding:36px 20px 60px; border-top:1px solid var(--line-soft);
-    font-size:11.5px; color:var(--ink-faint); line-height:1.7;
-  }
-  footer code{ color:var(--ink-dim); }
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:14px}
+  .kv dt{color:var(--ink-faint)} .kv dd{margin:0;word-break:break-word}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{background:var(--iris-soft);color:var(--iris-deep);border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:600}
+  .verdict{border-radius:var(--radius);padding:18px;margin-bottom:12px}
+  .verdict.good{background:var(--mint-soft)} .verdict.bad{background:var(--coral-soft)}
+  .verdict.warn{background:var(--gold-soft)} .verdict.neutral{background:#EEECF3}
+  .verdict .big{font-size:22px;font-weight:800;letter-spacing:-.01em}
+  .steps{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap}
+  .step{font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 10px;background:#EEECF3;color:var(--ink-faint)}
+  .step.done{background:var(--mint-soft);color:var(--mint)} .step.now{background:var(--iris);color:#fff}
+  .back{display:inline-block;margin-bottom:12px;font-size:14px;text-decoration:none;font-weight:600}
+  .empty{text-align:center;color:var(--ink-faint);padding:28px 8px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--iris);
+        border-radius:50%;animation:s 0.8s linear infinite;vertical-align:-2px;margin-right:8px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  footer{max-width:760px;margin:0 auto;padding:6px 16px 30px;color:var(--ink-faint);font-size:12.5px}
 </style>
 </head>
 <body>
 
-<nav class="topnav">
-  <div class="brandmark">
-    <svg class="scales" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 2V22M12 6L6 6M12 6L18 6M6 6L3 12H9L6 6ZM18 6L15 12H21L18 6M4 20H20" stroke="#C9A15E" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    Veri<span style="color:var(--gold-bright); font-style:italic;">dict</span>
+<header class="top"><div class="wrap">
+  <a class="brand" href="#/">Trade<span>Anchor</span></a>
+  <div class="status-pill" id="walletPill" role="button" tabindex="0">
+    <span class="dot" id="statusDot"></span><span class="label" id="statusText">Connect wallet</span>
   </div>
-  <div class="navlinks">
-    <a href="#docket">Docket</a>
-    <a href="#how">How it works</a>
-    <a href="#jurors">Jurors</a>
-    <a href="#create">Create</a>
-  </div>
-</nav>
+</div></header>
 
-<header class="hero">
-  <div>
-    <p class="eyebrow">Two-tier adjudication for autonomous trades</p>
-    <h1>Outcomes<br>become<br><span class="accent">accountable.</span></h1>
-    <p class="lede">
-      Agents lock GEN, submit evidence, and receive an automated outcome. If either
-      side disputes it, a staked jury decides instead — and puts its own GEN on
-      the line to do it. GenLayer checks the jury's majority against frozen
-      evidence before anyone is paid or slashed.
-    </p>
-    <div class="hero-ctas">
-      <a class="btn btn-fill" href="#create">Create an trade</a>
-      <a class="btn btn-outline" href="#jurors">Become a juror</a>
-    </div>
-  </div>
-  <div class="hero-visual">
-    <svg class="rings" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="110" cy="110" r="95" stroke="#C9A15E" stroke-opacity=".25" stroke-width="1"/>
-      <circle cx="110" cy="110" r="72" stroke="#C9A15E" stroke-opacity=".4" stroke-width="1"/>
-      <path d="M110 55V165M110 75L82 75M110 75L138 75M82 75L68 100H96L82 75ZM138 75L124 100H152L138 75M60 160H160" stroke="#E4C27F" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    <div class="float-card top">
-      <span class="tag">Live protocol</span>
-      <p class="big" id="heroAgreementCount">—</p>
-      <p class="small">trades indexed on this contract</p>
-    </div>
-    <div class="float-card bottom">
-      <span class="tag">No relay</span>
-      <p class="big">GEN-native</p>
-      <p class="small">Settlement and slashing happen inside this contract — nothing bridges out to another chain.</p>
-    </div>
-  </div>
-</header>
+<main class="wrap">
 
-<div class="divider"></div>
-<div class="stripe">
-  <span class="on">GenLayer</span>
-  <span>Commit-reveal jury</span>
-  <span>Evidence snapshot</span>
-  <span>Bounded verification</span>
-  <span>Pull-payment</span>
-</div>
-<div class="divider"></div>
-
-<section id="how" class="tight">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow" style="margin-bottom:6px;">Judicial primitive</p>
-      <h2>The evidence is the law.</h2>
-    </div>
-    <p>An automated outcome resolves most trades. A dispute escalates to a jury that votes on evidence it can no longer see change.</p>
-  </div>
-  <div class="steps">
-    <div class="step-card">
-      <div class="step-num">01</div>
-      <h3>Commitment</h3>
-      <p>Two parties agree on trade terms, completion criteria, and a GEN stake — escrowed before any value moves.</p>
-    </div>
-    <div class="step-card">
-      <div class="step-num">02</div>
-      <h3>Evidence</h3>
-      <p>Sources are submitted once and frozen into a snapshot — deduplicated, hashed, and never editable again.</p>
-    </div>
-    <div class="step-card">
-      <div class="step-num">03</div>
-      <h3>Outcome</h3>
-      <p>GenLayer reads the frozen evidence — cross-checked against the on-chain-anchored receiving address — and returns TRADE_COMPLETED, PARTIALLY_COMPLETED, TRADE_BREACHED, or UNDETERMINED.</p>
-    </div>
-    <div class="step-card">
-      <div class="step-num">04</div>
-      <h3>Appeal &amp; jury</h3>
-      <p>Either party can appeal. Staked jurors vote blind, then GenLayer checks their majority against the same evidence.</p>
-    </div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section id="docket">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow" style="margin-bottom:6px;">Public record</p>
-      <h2>Recent trades.</h2>
-    </div>
-    <button class="refresh-link" id="refreshDocketBtn">Refresh</button>
-  </div>
-  <div id="docketWrap">
-    <p class="docket-empty">Connect a wallet or press Refresh to load trades from the contract.</p>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<div class="statusbar">
-  <span class="dot" id="statusDot"></span>
-  <span id="statusText">Not connected</span>
-  <button id="connectBtn">Connect wallet</button>
-  <button id="testSessionBtn">Start test session</button>
-  <span class="test-note" id="testSessionNote">
-    Test session uses a freshly generated in-browser keypair against GenLayer Studio — no real funds, resets on refresh. Use "new test session" for a different address.
-  </span>
-  <span style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:11px;">Contract: <code id="contractAddrText">—</code></span>
-</div>
-
-<section id="actions" class="tight">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow" style="margin-bottom:6px;">Docket actions</p>
-      <h2 id="create">File &amp; resolve.</h2>
-    </div>
-  </div>
-
-  <div class="panels-grid">
-
-    <div class="panel">
-      <h3>Create trade <span class="tier-mark">Tier 1</span></h3>
-      <p class="desc">You become <code>party_a</code>. Your GEN stake is escrowed now; <code>party_b</code> must match it exactly to accept.</p>
-      <label>Party B address</label>
-      <input type="text" id="partyB" placeholder="0x...">
-      <label>Trade terms</label>
-      <textarea id="tradeTerms" placeholder="Send 1 ETH to the agreed receiving address by the deadline"></textarea>
-      <label>Completion criteria</label>
-      <textarea id="acceptanceCriteria" placeholder="Full amount must arrive at the recorded receiving address"></textarea>
-      <label>Expected receiving address <span class="tier-mark">on-chain anchor</span></label>
-      <input type="text" id="expectedAddress" placeholder="0x... or bc1...">
-      <label>Expected amount (optional — blank for a best-effort swap)</label>
-      <input type="text" id="expectedAmount" placeholder="1 ETH">
-      <label>Allowed evidence domains <span class="tier-mark">agreed up front</span></label>
-      <input type="text" id="allowedDomains" placeholder="etherscan.io, basescan.org">
-      <p class="hint">Comma-separated. Recorded on-chain; the counterparty sees it before accepting. Evidence must be an https link on one of these domains (or a subdomain).</p>
-      <div class="row2">
-        <div><label>Your stake (GEN)</label><input type="text" id="stakeAmount" placeholder="1.0"></div>
-        <div><label>Deadline</label><input type="datetime-local" id="deadline"></div>
+  <!-- ===== Explore ===== -->
+  <section class="route" id="route-home">
+    <div class="hero">
+      <h1>OTC trades, settled on <span style="color:var(--iris)">evidence</span>.</h1>
+      <p>Two parties lock GEN against an agreed receiving address. Evidence must come from domains they agreed up front. An automated outcome decides; a staked jury can overturn it.</p>
+      <div class="stats">
+        <div class="stat"><b id="statTrades">—</b><span>trades</span></div>
+        <div class="stat"><b id="statOpen">—</b><span>in progress</span></div>
+        <div class="stat"><b id="statDone">—</b><span>finalized</span></div>
       </div>
-      <label>Minimum evidence sources required</label>
-      <input type="text" id="minEvidenceSources" value="1">
-      <p class="hint">Default 1. Raise this for trades that need independent corroboration (e.g. more than one explorer) rather than a single link. Duplicate URLs never count twice. A TRADE_COMPLETED outcome is never accepted unless the expected receiving address actually appears in the submitted evidence.</p>
-      <button class="primary" id="createBtn">Create trade</button>
+    </div>
+    <div class="row"><h2>Explore</h2><a href="#/create" style="font-weight:700;text-decoration:none">+ New trade</a></div>
+    <input id="filterInput" placeholder="Filter by ID, terms, address or status" style="margin:12px 0">
+    <div id="tradeList"></div>
+    <button class="ghost" id="refreshBtn">Refresh</button>
+  </section>
+
+  <!-- ===== Create ===== -->
+  <section class="route" id="route-create">
+    <h2>New trade</h2>
+    <p class="muted">You become party A and your stake is escrowed now. Party B must match it exactly to accept.</p>
+    <div class="card">
+      <label for="fPartyB">Party B address</label>
+      <input id="fPartyB" placeholder="0x…" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label for="fTerms">Trade terms</label>
+      <textarea id="fTerms" placeholder="Send 1 ETH to the agreed receiving address by the deadline"></textarea>
+      <label for="fCriteria">Completion criteria</label>
+      <textarea id="fCriteria" placeholder="Full amount must arrive at the recorded receiving address"></textarea>
+      <label for="fAddress">Expected receiving address</label>
+      <input id="fAddress" placeholder="0x… or bc1…" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <p class="hint">Recorded on-chain now. A completed outcome is never accepted unless the evidence shows this address.</p>
+      <label for="fAmount">Expected amount (optional)</label>
+      <input id="fAmount" placeholder="1 ETH">
+      <label for="fDomains">Allowed evidence domains</label>
+      <input id="fDomains" placeholder="etherscan.io, basescan.org" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <p class="hint">Comma-separated. Party B sees this before accepting. Evidence must be an https link on one of these domains or a subdomain.</p>
+      <div class="grid2">
+        <div><label for="fStake">Your stake (GEN)</label><input id="fStake" inputmode="decimal" placeholder="1.0"></div>
+        <div><label for="fMinSrc">Min. evidence sources</label><input id="fMinSrc" inputmode="numeric" value="1"></div>
+      </div>
+      <label for="fDeadline">Deadline</label>
+      <input id="fDeadline" type="datetime-local">
+      <p class="hint">Between 1 hour and 30 days from now.</p>
+      <button id="createBtn">Create trade</button>
       <div class="out" id="createOut"></div>
     </div>
+  </section>
 
-    <div class="panel">
-      <h3>Accept / cancel</h3>
-      <p class="desc">Only the named <code>party_b</code> can accept, by sending the exact same stake. Only <code>party_a</code> can cancel, and only before acceptance.</p>
-      <label>Trade ID</label>
-      <input type="text" id="acceptId" placeholder="trade_0">
-      <div class="row2">
-        <div><label>Stake to send (GEN)</label><input type="text" id="acceptStake" placeholder="1.0"></div>
-        <div style="align-self:end;"><button class="secondary" id="loadStakeBtn" style="margin-top:12px;">Load exact amount</button></div>
-      </div>
-      <button class="primary" id="acceptBtn">Accept (party_b)</button>
-      <button class="secondary" id="cancelBtn">Cancel (party_a)</button>
-      <div class="out" id="acceptOut"></div>
-    </div>
+  <!-- ===== Trade detail ===== -->
+  <section class="route" id="route-trade">
+    <a class="back" href="#/">← All trades</a>
+    <div id="tradeView"></div>
+  </section>
 
-    <div class="panel">
-      <h3>Submit evidence</h3>
-      <p class="desc">Single-shot: the first successful call FREEZES the evidence set — no re-submission afterward. Either party may call this.</p>
-      <label>Trade ID</label>
-      <input type="text" id="evidenceId" placeholder="trade_0">
-      <label>Evidence URLs (comma-separated)</label>
-      <textarea id="evidenceUrls" placeholder="https://github.com/you/repo, https://example.com/report.pdf"></textarea>
-      <button class="primary" id="evidenceBtn">Lock evidence</button>
-      <div class="out" id="evidenceOut"></div>
+  <!-- ===== Jury ===== -->
+  <section class="route" id="route-jury">
+    <h2>Jurors</h2>
+    <p class="muted">Stake GEN to be eligible for appeal juries. Selection weight is capped, so large stakes cannot buy unlimited odds.</p>
+    <div class="card">
+      <h3>Register or top up</h3>
+      <label for="jStake">Stake to add (GEN)</label>
+      <input id="jStake" inputmode="decimal" value="1.0">
+      <button id="jRegisterBtn">Register / add stake</button>
+      <label for="jUnstake">Unstake amount (GEN)</label>
+      <input id="jUnstake" inputmode="decimal" placeholder="0.5">
+      <button class="secondary" id="jUnstakeBtn">Unstake</button>
+      <div class="out" id="jOut"></div>
     </div>
+    <div class="card">
+      <h3>Look up a juror</h3>
+      <label for="jAddr">Address</label>
+      <input id="jAddr" placeholder="0x… (blank = connected wallet)" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <button class="secondary" id="jLookupBtn">Get juror record</button>
+      <div class="out" id="jLookupOut"></div>
+    </div>
+  </section>
 
-    <div class="panel">
-      <h3>Resolve / finalize <span class="tier-mark">Tier 1</span></h3>
-      <p class="desc">Permissionless. <code>resolve_tier1</code> runs the automated outcome once evidence is locked. If nobody appeals in time, <code>finalize_unappealed</code> settles on it.</p>
-      <label>Trade ID</label>
-      <input type="text" id="resolveId" placeholder="trade_0">
-      <button class="primary" id="resolveBtn">Resolve Tier-1</button>
-      <button class="secondary" id="finalizeUnappealedBtn">Finalize (if unappealed)</button>
-      <div class="out" id="resolveOut"></div>
+  <!-- ===== Withdraw ===== -->
+  <section class="route" id="route-withdraw">
+    <h2>Balance</h2>
+    <p class="muted">Payouts are credited here first. Withdraw sends your whole balance to your own wallet.</p>
+    <div class="card">
+      <div class="row"><span class="muted">Your pending balance</span><b id="myPending">—</b></div>
+      <button id="withdrawBtn">Withdraw my balance</button>
+      <button class="ghost" id="checkPendingBtn">Refresh balance</button>
+      <div class="out" id="wOut"></div>
     </div>
+    <div class="card">
+      <h3>Check any address</h3>
+      <label for="wAddr">Address</label>
+      <input id="wAddr" placeholder="0x…" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <button class="secondary" id="wLookupBtn">Check pending balance</button>
+      <div class="row" style="margin-top:14px"><span class="muted">Total held by contract</span><b id="contractBal">—</b></div>
+      <div class="out" id="wLookupOut"></div>
+    </div>
+  </section>
 
-    <div class="panel" id="jurors">
-      <h3>Become a juror <span class="tier-mark jury">Tier 2</span></h3>
-      <p class="desc">Stake GEN independently of any single case. Selection weight is <code>min(stake, cap) × reputation</code> — a whale can't buy unlimited odds.</p>
-      <label>Stake to add (GEN)</label>
-      <input type="text" id="jurorStake" placeholder="1.0">
-      <button class="primary" id="registerJurorBtn">Register / top up stake</button>
-      <label>Unstake amount (wei)</label>
-      <input type="text" id="unstakeAmount" placeholder="e.g. 500000000000000000">
-      <button class="secondary" id="unstakeBtn">Unstake</button>
-      <div class="out" id="jurorOut"></div>
-    </div>
-
-    <div class="panel">
-      <h3>Appeal <span class="tier-mark jury">Tier 2</span></h3>
-      <p class="desc">Either party, within the appeal window, posting a bond (~20% of stake, clamped). Selects a jury against the ALREADY-LOCKED evidence — needs at least 5 staked jurors.</p>
-      <label>Trade ID</label>
-      <input type="text" id="appealId" placeholder="trade_0">
-      <label>Bond to send (GEN)</label>
-      <input type="text" id="appealBond" placeholder="0.2">
-      <button class="primary" id="appealBtn">File appeal</button>
-      <div class="out" id="appealOut"></div>
-    </div>
-
-    <div class="panel">
-      <h3>Commit vote <span class="tier-mark jury">Tier 2</span></h3>
-      <p class="desc">Only if you were selected. Your vote is hashed with a private salt before sending — nobody can see or copy it until you reveal.</p>
-      <label>Trade ID</label>
-      <input type="text" id="commitId" placeholder="trade_0">
-      <div class="row2">
-        <div>
-          <label>Your vote</label>
-          <select id="commitVote">
-            <option value="TRADE_COMPLETED">TRADE_COMPLETED</option>
-            <option value="PARTIALLY_COMPLETED">PARTIALLY_COMPLETED</option>
-            <option value="TRADE_BREACHED">TRADE_BREACHED</option>
-            <option value="UNDETERMINED">UNDETERMINED</option>
-          </select>
-        </div>
-        <div><label>Private salt</label><input type="text" id="commitSalt" placeholder="any random string"></div>
-      </div>
-      <p class="hint">Save your vote + salt somewhere — you need the exact same values to reveal.</p>
-      <button class="primary" id="commitBtn">Commit</button>
-      <div class="out" id="commitOut"></div>
-    </div>
-
-    <div class="panel">
-      <h3>Reveal vote <span class="tier-mark jury">Tier 2</span></h3>
-      <p class="desc">Only after the commit window closes. Must match your earlier commit exactly, or it's rejected.</p>
-      <label>Trade ID</label>
-      <input type="text" id="revealId" placeholder="trade_0">
-      <div class="row2">
-        <div>
-          <label>Your vote (same as commit)</label>
-          <select id="revealVote">
-            <option value="TRADE_COMPLETED">TRADE_COMPLETED</option>
-            <option value="PARTIALLY_COMPLETED">PARTIALLY_COMPLETED</option>
-            <option value="TRADE_BREACHED">TRADE_BREACHED</option>
-            <option value="UNDETERMINED">UNDETERMINED</option>
-          </select>
-        </div>
-        <div><label>Same salt</label><input type="text" id="revealSalt" placeholder="the exact salt you used"></div>
-      </div>
-      <button class="primary" id="revealBtn">Reveal</button>
-      <div class="out" id="revealOut"></div>
-    </div>
-
-    <div class="panel">
-      <h3>Finalize jury <span class="tier-mark jury">Tier 2</span></h3>
-      <p class="desc">Permissionless, after the reveal window closes. Aggregates votes, checks the majority against frozen evidence, then applies slashing/rewards.</p>
-      <label>Trade ID</label>
-      <input type="text" id="finalizeJuryId" placeholder="trade_0">
-      <button class="primary" id="finalizeJuryBtn">Finalize jury round</button>
-      <div class="out" id="finalizeJuryOut"></div>
-    </div>
-
-    <div class="panel">
-      <h3>Withdraw</h3>
-      <p class="desc">Sends your entire credited balance to your own wallet. The only method that ever moves GEN out of the contract.</p>
-      <button class="primary" id="withdrawBtn">Withdraw my balance</button>
-      <button class="secondary" id="checkPendingBtn">Check my pending balance</button>
-      <div class="out" id="withdrawOut"></div>
-    </div>
-
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="tight">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow" style="margin-bottom:6px;">Look up / verify</p>
-      <h2>Read the record.</h2>
-    </div>
-    <p>Read-only calls — no wallet or GEN required.</p>
-  </div>
-  <div class="panels-grid">
-    <div class="panel">
-      <h3>By trade</h3>
-      <label>Trade ID</label>
-      <input type="text" id="readId" placeholder="trade_0">
-      <button class="secondary" id="readAgreementBtn">Get trade</button>
-      <button class="secondary" id="verifySelectionBtn">Verify jury selection</button>
-      <button class="secondary" id="totalAgreementsBtn" style="margin-top:16px;">Total trades</button>
-      <button class="secondary" id="contractBalanceBtn">Contract balance</button>
-    </div>
-    <div class="panel">
-      <h3>By address</h3>
-      <label>Address</label>
-      <input type="text" id="readAddr" placeholder="0x...">
-      <button class="secondary" id="readJurorBtn">Get juror record</button>
-      <button class="secondary" id="readPendingBtn">Get pending withdrawal</button>
-    </div>
-  </div>
-  <div class="out" id="readOut" style="margin-top:1px;"></div>
-</section>
+</main>
 
 <footer>
-  TradeAnchor — a two-tier GenLayer adjudication protocol. This page is a no-build
-  reference frontend (<code>genlayer-js</code>, no bundler) pointed at the
-  GenLayer Studio deployment shown above. To use your own deployment, change
-  <code>CONTRACT_ADDRESS</code> in the script below. Full trust model in <code>ARCHITECTURE.md</code>
-  and the class docstring in <code>contract.py</code>, including known v1
-  limitations disclosed up front.
+  TradeAnchor on GenLayer Studio · contract <span class="mono" id="contractAddrText"></span><br>
+  No-build reference frontend (genlayer-js). See ARCHITECTURE.md for the trust model and known limitations.
 </footer>
 
-<script type="module">
+<nav class="tabs"><div class="wrap">
+  <a class="tab-link" data-tab="home" href="#/">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Explore</a>
+  <a class="tab-link" data-tab="create" href="#/create">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Create</a>
+  <a class="tab-link" data-tab="jury" href="#/jury">
+    <svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>Jury</a>
+  <a class="tab-link" data-tab="withdraw" href="#/withdraw">
+    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg>Balance</a>
+</div></nav>
 
+<script type="module">
 import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
 import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
 
-// ------------------------------------------------------------------
-// EDIT THIS after you deploy TradeAnchor's contract.py — paste the
-// deployed address here (from the Studio/explorer "Deployed at" field).
-// ------------------------------------------------------------------
 const CONTRACT_ADDRESS = "0xd38960D5CD8afB30A531A1989F1A30ECc706893a";
+const OUTCOMES = ["TRADE_COMPLETED", "PARTIALLY_COMPLETED", "TRADE_BREACHED"];
+const LIST_LIMIT = 40;
 
-document.getElementById('contractAddrText').textContent = CONTRACT_ADDRESS;
+const $ = (id) => document.getElementById(id);
+$("contractAddrText").textContent = CONTRACT_ADDRESS.slice(0, 8) + "…" + CONTRACT_ADDRESS.slice(-6);
 
-let client = null;
-let account = null;
-
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const connectBtn = document.getElementById('connectBtn');
-const testSessionBtn = document.getElementById('testSessionBtn');
-const testSessionNote = document.getElementById('testSessionNote');
-
-function setStatus(connected, label){
-  statusDot.classList.toggle('on', connected);
-  statusText.textContent = label;
-}
-
-async function connectWallet(){
-  if (!window.ethereum) {
-    setStatus(false, 'No injected wallet found — install MetaMask, or use "start test session" instead');
-    return;
+/* ---------- tiny DOM helper: never innerHTML, so contract data is always text ---------- */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "text") el.textContent = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
   }
-  try {
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    account = accounts[0];
-    client = createClient({ chain: studionet, account });
-    setStatus(true, `Connected (MetaMask) · ${account.slice(0,6)}…${account.slice(-4)}`);
-    connectBtn.textContent = 'reconnect';
-    testSessionNote.style.display = 'none';
-  } catch (err) {
-    setStatus(false, 'Connection rejected');
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    el.appendChild(typeof kid === "string" || typeof kid === "number" ? document.createTextNode(String(kid)) : kid);
   }
+  return el;
 }
-connectBtn.addEventListener('click', connectWallet);
+const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
+const short = (a) => (a ? a.slice(0, 6) + "…" + a.slice(-4) : "—");
+const same = (a, b) => !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase();
+const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch (e) { return String(iso); } };
+const isPast = (iso) => { try { return Date.now() > new Date(iso).getTime(); } catch (e) { return false; } };
 
-function startTestSession(){
-  const generated = createAccount();
-  account = generated.address ?? generated;
-  client = createClient({ chain: studionet, account: generated });
-  setStatus(true, `Connected (test session) · ${account.slice(0,6)}…${account.slice(-4)}`);
-  testSessionBtn.textContent = 'new test session';
-  testSessionNote.style.display = 'block';
-}
-testSessionBtn.addEventListener('click', startTestSession);
-
-// Read-only client, usable even without a wallet connection.
-const readClient = createClient({ chain: studionet });
-
-// ------------------------------------------------------------------
-// Hero live stat + recent-trades docket. Both are read-only and
-// work without a connected wallet.
-// ------------------------------------------------------------------
-function outcomePillClass(status, outcome){
-  if (status !== 'finalized') return 'pill-open';
-  if (outcome === 'TRADE_COMPLETED') return 'pill-good';
-  if (outcome === 'TRADE_BREACHED') return 'pill-bad';
-  return 'pill-neutral';
-}
-
-async function loadDocket(){
-  const heroCount = document.getElementById('heroAgreementCount');
-  const wrap = document.getElementById('docketWrap');
-  try {
-    const total = Number(await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'total_trades', args: [] }));
-    heroCount.textContent = String(total);
-    if (total === 0) {
-      wrap.innerHTML = '';
-      wrap.appendChild(Object.assign(document.createElement('p'), { className: 'docket-empty', textContent: 'No trades yet — the first one filed here will show up in this table.' }));
-      return;
-    }
-    const start = Math.max(0, total - 6);
-    const rows = [];
-    for (let i = total - 1; i >= start; i--) {
-      try {
-        const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_trade', args: [`trade_${i}`] });
-        rows.push(typeof raw === 'string' ? JSON.parse(raw) : raw);
-      } catch (e) { /* skip a row that fails to load */ }
-    }
-    const table = document.createElement('table');
-    table.className = 'docket';
-    const thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Case</th><th>Status</th><th>Outcome</th><th>Objective</th></tr>';
-    table.appendChild(thead);
-    const tbody = document.createElement('tbody');
-    for (const a of rows) {
-      const tr = document.createElement('tr');
-      const tdId = document.createElement('td'); tdId.textContent = a.trade_id; tr.appendChild(tdId);
-      const tdStatus = document.createElement('td'); tdStatus.textContent = a.status; tr.appendChild(tdStatus);
-      const tdOutcome = document.createElement('td');
-      const pill = document.createElement('span');
-      pill.className = 'pill ' + outcomePillClass(a.status, a.final_outcome || a.tier1_outcome);
-      pill.textContent = a.final_outcome || a.tier1_outcome || 'pending';
-      tdOutcome.appendChild(pill);
-      tr.appendChild(tdOutcome);
-      const tdObj = document.createElement('td');
-      tdObj.textContent = (a.trade_terms || '').slice(0, 70) + ((a.trade_terms || '').length > 70 ? '…' : '');
-      tr.appendChild(tdObj);
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-    wrap.innerHTML = '';
-    wrap.appendChild(table);
-  } catch (err) {
-    heroCount.textContent = '—';
-    wrap.innerHTML = '';
-    wrap.appendChild(Object.assign(document.createElement('p'), { className: 'docket-empty', textContent: 'Could not load the docket — the contract address may not be set yet, or the network is unreachable.' }));
-  }
-}
-document.getElementById('refreshDocketBtn').addEventListener('click', loadDocket);
-loadDocket();
-
-// ------------------------------------------------------------------
-// Every dynamic value on this page goes through textContent, never
-// innerHTML, so contract output can never be parsed as markup.
-// ------------------------------------------------------------------
-function showOut(el, text, kind){
-  el.style.display = 'block';
-  el.textContent = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
-  el.classList.remove('ok', 'err');
+function showOut(el, text, kind) {
+  el.style.display = "block";
+  el.textContent = typeof text === "string" ? text : JSON.stringify(text, null, 2);
+  el.classList.remove("ok", "err");
   if (kind) el.classList.add(kind);
 }
 
-function requireClient(out){
-  if (!client) {
-    showOut(out, 'Connect a wallet first (MetaMask or test session).', 'err');
-    return false;
-  }
-  return true;
-}
-
-function localInputToIsoUtc(localValue){
-  const d = new Date(localValue);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
-function defaultDeadlineLocalValue(){
-  const future = new Date(Date.now() + 3 * 3600000);
-  const tzOffsetMs = future.getTimezoneOffset() * 60000;
-  const local = new Date(future.getTime() - tzOffsetMs);
-  return local.toISOString().slice(0, 16);
-}
-document.getElementById('deadline').value = defaultDeadlineLocalValue();
-
-function parseCommaList(raw){
-  return raw.split(',').map(s => s.trim()).filter(Boolean);
-}
-
-/**
- * Extract the contract method's actual return value from a GenLayer
- * transaction receipt (same unwrapping logic as TrueStake's frontend).
- */
-function extractReturnValue(receipt){
-  const payload = receipt?.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
-  if (payload === undefined) return null;
-  let value = payload;
-  for (let i = 0; i < 3; i++) {
-    if (typeof value !== 'string') break;
-    const trimmed = value.trim();
-    const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"');
-    if (!looksLikeJson) break;
-    try { value = JSON.parse(value); } catch (e) { break; }
-  }
-  return value;
-}
-
-// GEN <-> wei helpers. Contract deals only in wei (1 GEN = 10^18 wei),
-// as an exact BigInt — never a floating-point JS number.
+/* ---------- GEN <-> wei, exact BigInt only ---------- */
 const WEI_PER_GEN = 1000000000000000000n;
-
-function genToWei(genStr){
-  const trimmed = String(genStr).trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split('.');
-  if (parts.length > 2) return null;
-  const whole = parts[0] || '0';
-  let frac = parts[1] || '';
-  if (!/^\d+$/.test(whole) || (frac && !/^\d+$/.test(frac))) return null;
-  if (frac.length > 18) return null;
-  frac = frac.padEnd(18, '0');
-  try { return BigInt(whole) * WEI_PER_GEN + BigInt(frac || '0'); }
-  catch (e) { return null; }
+function genToWei(s) {
+  const t = String(s).trim();
+  if (!t) return null;
+  const p = t.split(".");
+  if (p.length > 2) return null;
+  const whole = p[0] || "0";
+  let frac = p[1] || "";
+  if (!/^\d+$/.test(whole) || (frac && !/^\d+$/.test(frac)) || frac.length > 18) return null;
+  try { return BigInt(whole) * WEI_PER_GEN + BigInt(frac.padEnd(18, "0") || "0"); } catch (e) { return null; }
 }
-
-function weiToGenString(weiValue){
+function weiToGen(w) {
   let wei;
-  try { wei = BigInt(weiValue); } catch (e) { return String(weiValue); }
-  const whole = wei / WEI_PER_GEN;
-  const frac = (wei % WEI_PER_GEN).toString().padStart(18, '0').replace(/0+$/, '');
-  return frac ? `${whole}.${frac}` : whole.toString();
+  try { wei = BigInt(w); } catch (e) { return String(w); }
+  const frac = (wei % WEI_PER_GEN).toString().padStart(18, "0").replace(/0+$/, "");
+  return frac ? `${wei / WEI_PER_GEN}.${frac}` : (wei / WEI_PER_GEN).toString();
 }
 
-/**
- * sha256 hex of "vote:salt" — MUST exactly match the contract's
- * `hashlib.sha256(f"{vote}:{salt}".encode()).hexdigest()` in
- * commit_vote/reveal_vote.
- */
-async function commitHash(vote, salt){
-  const data = new TextEncoder().encode(`${vote}:${salt}`);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+/* ---------- wallet ---------- */
+let client = null;
+let account = null;
+const readClient = createClient({ chain: studionet });
 
-async function writeAndReport(out, label, functionName, args, valueWei){
+function setStatus(on, label) {
+  $("statusDot").classList.toggle("on", on);
+  $("statusText").textContent = label;
+}
+async function connectInjected() {
+  if (!window.ethereum) return false;
   try {
-    showOut(out, `Submitting ${label}…`);
-    const txHash = await client.writeContract({
-      address: CONTRACT_ADDRESS, functionName, args, value: valueWei ?? 0n,
-    });
-    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
-    const receipt = await client.waitForTransactionReceipt({
-      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
-    });
-    const result = extractReturnValue(receipt);
-    showOut(out, `Done.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
-    return result;
-  } catch (err) {
-    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    account = accounts[0];
+    client = createClient({ chain: studionet, account });
+    setStatus(true, short(account));
+    return true;
+  } catch (e) { setStatus(false, "Connection rejected"); return false; }
+}
+function startTestSession() {
+  const generated = createAccount();
+  account = generated.address ?? generated;
+  client = createClient({ chain: studionet, account: generated });
+  setStatus(true, "Test · " + short(account));
+}
+async function onWalletPill() {
+  if (await connectInjected()) { route(); return; }
+  if (!window.ethereum) { startTestSession(); route(); }
+}
+$("walletPill").addEventListener("click", onWalletPill);
+
+function needClient(out) {
+  if (client) return true;
+  showOut(out, "Tap the wallet button at the top to connect first.", "err");
+  return false;
+}
+
+/* ---------- contract calls ---------- */
+function unwrap(receipt) {
+  let v = receipt?.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
+  if (v === undefined) return null;
+  for (let i = 0; i < 3; i++) {
+    if (typeof v !== "string") break;
+    const t = v.trim();
+    if (!(t.startsWith("{") || t.startsWith("[") || t.startsWith('"'))) break;
+    try { v = JSON.parse(v); } catch (e) { break; }
+  }
+  return v;
+}
+async function read(functionName, args = []) {
+  return readClient.readContract({ address: CONTRACT_ADDRESS, functionName, args });
+}
+async function readJson(functionName, args = []) {
+  const raw = await read(functionName, args);
+  return typeof raw === "string" ? JSON.parse(raw) : raw;
+}
+async function write(out, label, functionName, args, valueWei) {
+  if (!needClient(out)) return null;
+  try {
+    showOut(out, `Sending ${label}…`);
+    const hash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName, args, value: valueWei ?? 0n });
+    showOut(out, `Sent ${short(hash)}. Waiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({ hash, status: "FINALIZED", interval: 4000, retries: 45 });
+    const result = unwrap(receipt);
+    const failed = receipt?.consensus_data?.leader_receipt?.[0]?.execution_result === "ERROR";
+    if (failed) { showOut(out, "The contract rejected this call. Check the details and try again.\n\nTx: " + hash, "err"); return null; }
+    showOut(out, "Done.\n\nTx: " + hash, "ok");
+    return result === null ? true : result;
+  } catch (e) {
+    showOut(out, "Error: " + (e?.message || String(e)), "err");
     return null;
   }
 }
 
-// ---------- 1: Create Trade ----------
-document.getElementById('createBtn').addEventListener('click', async () => {
-  const out = document.getElementById('createOut');
-  if (!requireClient(out)) return;
-  const partyB = document.getElementById('partyB').value.trim();
-  const tradeTerms = document.getElementById('tradeTerms').value.trim();
-  const completionCriteria = document.getElementById('acceptanceCriteria').value.trim();
-  const expectedAddress = document.getElementById('expectedAddress').value.trim();
-  const expectedAmount = document.getElementById('expectedAmount').value.trim();
-  const allowedDomains = document.getElementById('allowedDomains').value.trim();
-  const stakeGen = document.getElementById('stakeAmount').value.trim();
-  const deadlineIso = localInputToIsoUtc(document.getElementById('deadline').value);
-  const stakeWei = genToWei(stakeGen);
-  const minSourcesRaw = document.getElementById('minEvidenceSources').value.trim();
-  const minSources = parseInt(minSourcesRaw, 10);
+/* ---------- status helpers ---------- */
+const STEPS = [
+  ["created", "Created"], ["open", "Accepted"], ["evidence_locked", "Evidence"],
+  ["tier1_resolved", "Outcome"], ["appealed", "Appeal"], ["finalized", "Final"],
+];
+function outcomeOf(t) { return t.final_outcome || t.tier1_outcome || null; }
+function outcomeTone(t) {
+  if (t.status === "cancelled") return "neutral";
+  const o = outcomeOf(t);
+  if (!o) return "open";
+  if (t.status !== "finalized") return "warn";
+  if (o === "TRADE_COMPLETED") return "good";
+  if (o === "TRADE_BREACHED") return "bad";
+  return "neutral";
+}
+const STATUS_LABEL = {
+  created: "Waiting for party B", open: "Awaiting evidence", evidence_locked: "Evidence locked",
+  tier1_resolved: "Outcome issued", appealed: "Under appeal", finalized: "Finalized", cancelled: "Cancelled",
+};
 
-  if (!partyB) return showOut(out, "Enter party B's address.", 'err');
-  if (!tradeTerms) return showOut(out, 'Enter the trade terms.', 'err');
-  if (!completionCriteria) return showOut(out, 'Enter the completion criteria.', 'err');
-  if (!expectedAddress) return showOut(out, 'Enter the expected receiving address.', 'err');
-  if (!allowedDomains) return showOut(out, 'Enter at least one allowed evidence domain.', 'err');
-  if (stakeWei === null || stakeWei <= 0n) return showOut(out, 'Enter a valid positive stake in GEN.', 'err');
-  if (!deadlineIso) return showOut(out, 'Enter a valid deadline.', 'err');
-  if (!Number.isInteger(minSources) || minSources < 1) return showOut(out, 'Minimum evidence sources must be a whole number of at least 1.', 'err');
-
-  const id = await writeAndReport(out, 'create_trade', 'create_trade', [partyB, tradeTerms, completionCriteria, expectedAddress, expectedAmount, allowedDomains, deadlineIso, minSources], stakeWei);
-  if (id) {
-    for (const el of ['acceptId','evidenceId','resolveId','appealId','readId']) {
-      document.getElementById(el).value = String(id);
-    }
-    document.getElementById('acceptStake').value = stakeGen;
+/* ---------- Explore ---------- */
+let allTrades = [];
+async function loadList() {
+  const list = clear($("tradeList"));
+  list.appendChild(h("div", { class: "empty" }, h("span", { class: "spin" }), "Loading trades…"));
+  try {
+    const total = Number(await read("total_trades"));
+    const ids = [];
+    for (let i = total - 1; i >= Math.max(0, total - LIST_LIMIT); i--) ids.push(`trade_${i}`);
+    const rows = await Promise.all(ids.map((id) => readJson("get_trade", [id]).catch(() => null)));
+    allTrades = rows.filter(Boolean);
+    $("statTrades").textContent = String(total);
+    $("statOpen").textContent = String(allTrades.filter((t) => !["finalized", "cancelled"].includes(t.status)).length);
+    $("statDone").textContent = String(allTrades.filter((t) => t.status === "finalized").length);
+    renderList();
+  } catch (e) {
+    clear(list).appendChild(h("div", { class: "empty" }, "Could not load trades. The network may be unreachable; tap Refresh to retry."));
   }
+}
+function renderList() {
+  const list = clear($("tradeList"));
+  const q = $("filterInput").value.trim().toLowerCase();
+  const rows = allTrades.filter((t) =>
+    !q || [t.trade_id, t.trade_terms, t.party_a, t.party_b, t.status, outcomeOf(t) || ""].join(" ").toLowerCase().includes(q));
+  if (!rows.length) {
+    list.appendChild(h("div", { class: "empty" }, allTrades.length ? "No trades match this filter." : "No trades yet. Create the first one."));
+    return;
+  }
+  for (const t of rows) {
+    const o = outcomeOf(t);
+    list.appendChild(h("a", { class: "card link", href: `#/trade/${t.trade_id}` },
+      h("div", { class: "row" },
+        h("b", { class: "mono", text: t.trade_id }),
+        h("span", { class: `pill ${outcomeTone(t)}`, text: t.status === "cancelled" ? "CANCELLED" : (o || STATUS_LABEL[t.status] || t.status) })),
+      h("div", { class: "terms", text: t.trade_terms }),
+      h("div", { class: "row faint" },
+        h("span", { text: `${short(t.party_a)} → ${short(t.party_b)}` }),
+        h("span", { text: `${weiToGen(t.stake_amount)} GEN each` }))));
+  }
+}
+$("filterInput").addEventListener("input", renderList);
+$("refreshBtn").addEventListener("click", loadList);
+
+/* ---------- Create ---------- */
+function defaultDeadline() {
+  const d = new Date(Date.now() + 26 * 3600000);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+$("fDeadline").value = defaultDeadline();
+
+$("createBtn").addEventListener("click", async () => {
+  const out = $("createOut");
+  if (!needClient(out)) return;
+  const v = (id) => $(id).value.trim();
+  const stakeWei = genToWei(v("fStake"));
+  const deadline = new Date(v("fDeadline"));
+  const minSources = parseInt(v("fMinSrc"), 10);
+  if (!v("fPartyB")) return showOut(out, "Enter party B's address.", "err");
+  if (!v("fTerms")) return showOut(out, "Enter the trade terms.", "err");
+  if (!v("fCriteria")) return showOut(out, "Enter the completion criteria.", "err");
+  if (!v("fAddress")) return showOut(out, "Enter the expected receiving address.", "err");
+  if (!v("fDomains")) return showOut(out, "Enter at least one allowed evidence domain.", "err");
+  if (stakeWei === null || stakeWei <= 0n) return showOut(out, "Enter a valid positive stake in GEN.", "err");
+  if (isNaN(deadline.getTime())) return showOut(out, "Enter a valid deadline.", "err");
+  const leadH = (deadline.getTime() - Date.now()) / 3600000;
+  if (leadH < 1.05 || leadH > 29.9 * 24) return showOut(out, "Deadline must be between 1 hour and 30 days from now.", "err");
+  if (!Number.isInteger(minSources) || minSources < 1) return showOut(out, "Min. evidence sources must be a whole number of at least 1.", "err");
+  const id = await write(out, "create_trade", "create_trade",
+    [v("fPartyB"), v("fTerms"), v("fCriteria"), v("fAddress"), v("fAmount"), v("fDomains"), deadline.toISOString(), minSources], stakeWei);
+  if (id && typeof id === "string") location.hash = `#/trade/${id}`;
 });
 
-// ---------- 2: Accept / Cancel ----------
-document.getElementById('loadStakeBtn').addEventListener('click', async () => {
-  const out = document.getElementById('acceptOut');
-  const id = document.getElementById('acceptId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID first.', 'err');
+/* ---------- Trade detail ---------- */
+const savedKey = (id) => `tradeanchor:${CONTRACT_ADDRESS}:${id}:${(account || "").toLowerCase()}`;
+function saveVote(id, vote, salt) { try { localStorage.setItem(savedKey(id), JSON.stringify({ vote, salt })); } catch (e) {} }
+function loadVote(id) { try { return JSON.parse(localStorage.getItem(savedKey(id)) || "null"); } catch (e) { return null; } }
+async function sha256Hex(text) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function randomSalt() {
+  const a = new Uint8Array(12); crypto.getRandomValues(a);
+  return Array.from(a).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function appealBondWei(stakeWei) {
+  const s = BigInt(stakeWei);
+  let b = (s * 2000n) / 10000n;
+  if (b < 1n) b = 1n;
+  const max = 10n ** 30n;
+  return b > max ? max : b;
+}
+
+function kv(pairs) {
+  const dl = h("dl", { class: "kv" });
+  for (const [k, v] of pairs) {
+    if (v === null || v === undefined || v === "") continue;
+    dl.appendChild(h("dt", { text: k }));
+    dl.appendChild(h("dd", null, typeof v === "string" ? v : v));
+  }
+  return dl;
+}
+function actionCard(title, note, ...body) {
+  return h("div", { class: "card" }, h("h3", { text: title }), note ? h("p", { class: "hint", text: note }) : null, ...body);
+}
+function actionButton(label, kind, handler) {
+  const out = h("div", { class: "out" });
+  const btn = h("button", { class: kind || "" , text: label });
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try { const r = await handler(out); if (r) setTimeout(() => renderTrade(currentTradeId), 600); }
+    finally { btn.disabled = false; }
+  });
+  return [btn, out];
+}
+
+let currentTradeId = null;
+async function renderTrade(id) {
+  currentTradeId = id;
+  const view = clear($("tradeView"));
+  view.appendChild(h("div", { class: "empty" }, h("span", { class: "spin" }), "Loading " + id + "…"));
+  let t;
+  try { t = await readJson("get_trade", [id]); }
+  catch (e) { clear(view).appendChild(h("div", { class: "empty" }, "Trade not found: " + id)); return; }
+  clear(view);
+
+  const o = outcomeOf(t);
+  const me = account;
+  const isA = same(me, t.party_a), isB = same(me, t.party_b);
+  const role = isA ? "You are party A" : isB ? "You are party B" : null;
+
+  /* header + progress */
+  view.appendChild(h("div", { class: "row", style: "margin-bottom:6px" },
+    h("h2", { class: "mono", text: t.trade_id }),
+    h("span", { class: `pill ${outcomeTone(t)}`, text: STATUS_LABEL[t.status] || t.status })));
+  if (role) view.appendChild(h("p", { class: "faint", text: role }));
+
+  if (t.status !== "cancelled") {
+    const idx = STEPS.findIndex((s) => s[0] === t.status);
+    const steps = h("div", { class: "steps" });
+    STEPS.forEach((s, i) => {
+      if (s[0] === "appealed" && !t.appeal && t.status !== "appealed") return;
+      steps.appendChild(h("span", { class: "step " + (i < idx ? "done" : i === idx ? "now" : ""), text: s[1] }));
+    });
+    view.appendChild(steps);
+  }
+
+  /* outcome hero */
+  if (t.status === "finalized" && o) {
+    view.appendChild(h("div", { class: `verdict ${outcomeTone(t)}` },
+      h("div", { class: "faint", text: "Final outcome" }), h("div", { class: "big", text: o })));
+  } else if (t.tier1_outcome) {
+    view.appendChild(h("div", { class: `verdict ${outcomeTone(t)}` },
+      h("div", { class: "faint", text: "Automated outcome (can be appealed)" }),
+      h("div", { class: "big", text: t.tier1_outcome }),
+      h("p", { class: "muted", style: "margin-top:8px", text: t.tier1_reasoning || "" }),
+      h("span", { class: "pill " + (t.tier1_anchor_match ? "good" : "bad"),
+        text: t.tier1_anchor_match ? "Receiving address found in evidence" : "Receiving address NOT confirmed" })));
+  }
+
+  /* summary */
+  view.appendChild(h("div", { class: "card" },
+    h("p", { class: "terms", text: t.trade_terms }),
+    h("p", { class: "muted", text: t.completion_criteria }),
+    kv([
+      ["Party A", h("span", { class: "mono", text: t.party_a })],
+      ["Party B", h("span", { class: "mono", text: t.party_b })],
+      ["Stake", `${weiToGen(t.stake_amount)} GEN each`],
+      ["Receiving address", h("span", { class: "mono", text: t.expected_receiving_address })],
+      ["Expected amount", t.expected_amount || "not fixed"],
+      ["Deadline", fmtTime(t.deadline)],
+      ["Min. sources", String(t.min_evidence_sources)],
+    ]),
+    h("div", { style: "margin-top:12px" }, h("div", { class: "faint", text: "Allowed evidence domains" }),
+      h("div", { class: "chips", style: "margin-top:6px" }, (t.allowed_evidence_domains || []).map((d) => h("span", { class: "chip", text: d }))))));
+
+  /* evidence */
+  if (t.evidence_snapshot) {
+    const s = t.evidence_snapshot;
+    view.appendChild(h("div", { class: "card" }, h("h3", { text: "Frozen evidence" }),
+      h("div", { style: "margin-top:8px" }, s.source_urls.map((u) => h("div", { class: "mono", style: "word-break:break-all;margin-bottom:6px", text: u }))),
+      kv([["Locked", fmtTime(s.locked_at)], ["Submitted by", h("span", { class: "mono", text: short(s.submitted_by) })],
+          ["Evidence root", h("span", { class: "mono", text: short(s.evidence_root) })]])));
+  }
+
+  /* jury */
+  if (t.jury) {
+    const j = t.jury;
+    view.appendChild(h("div", { class: "card" }, h("h3", { text: "Appeal jury" }),
+      kv([
+        ["Appellant", h("span", { class: "mono", text: short(t.appeal?.appellant) })],
+        ["Bond", t.appeal ? `${weiToGen(t.appeal.bond_amount)} GEN` : ""],
+        ["Commit until", fmtTime(j.commit_deadline)], ["Reveal until", fmtTime(j.reveal_deadline)],
+        ["Commits / reveals", `${Object.keys(j.commits || {}).length} / ${Object.keys(j.reveals || {}).length}`],
+        ["Jury result", j.tier2_outcome || (j.provisional_outcome ? "provisional: " + j.provisional_outcome : "")],
+      ]),
+      h("div", { class: "faint", style: "margin-top:10px", text: "Selected jurors" }),
+      h("div", { style: "margin-top:4px" }, (j.selected_jurors || []).map((a) => h("div", { class: "mono", style: "word-break:break-all", text: a })))));
+  }
+
+  /* ----- contextual actions ----- */
+  const acts = h("div");
+  const st = t.status;
+
+  if (st === "created") {
+    const [b1, o1] = actionButton(`Accept and send ${weiToGen(t.stake_amount)} GEN`, "", (out) =>
+      write(out, "accept_trade", "accept_trade", [t.trade_id], BigInt(t.stake_amount)));
+    acts.appendChild(actionCard("Accept this trade", "Only party B can accept, with exactly the same stake. Check the allowed evidence domains first.", b1, o1));
+    const [b2, o2] = actionButton("Cancel trade", "danger", (out) => write(out, "cancel_trade", "cancel_trade", [t.trade_id]));
+    acts.appendChild(actionCard("Cancel", "Only party A, and only before acceptance. Your stake is refunded.", b2, o2));
+  }
+
+  if (st === "open") {
+    const ta = h("textarea", { placeholder: "One https link per line", spellcheck: "false", autocapitalize: "off" });
+    const [b, o2] = actionButton("Lock evidence", "", (out) => {
+      const urls = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+      if (!urls.length) { showOut(out, "Enter at least one URL.", "err"); return null; }
+      return write(out, "submit_evidence", "submit_evidence", [t.trade_id, urls]);
+    });
+    acts.appendChild(actionCard("Submit evidence",
+      "Single shot: the first accepted call freezes the evidence. Links must be https and on: " + (t.allowed_evidence_domains || []).join(", "), ta, b, o2));
+  }
+
+  if (st === "evidence_locked") {
+    const [b, o2] = actionButton("Resolve (Tier 1)", "", (out) => write(out, "resolve_tier1", "resolve_tier1", [t.trade_id]));
+    acts.appendChild(actionCard("Get the automated outcome", "Anyone can run this. Validators fetch the frozen evidence and check it against the recorded address. It can take a minute or two.", b, o2));
+  }
+
+  if (st === "tier1_resolved") {
+    const bond = appealBondWei(t.stake_amount);
+    const [b, o2] = actionButton(`Appeal with ${weiToGen(bond)} GEN bond`, "secondary", (out) =>
+      write(out, "appeal", "appeal", [t.trade_id], bond));
+    acts.appendChild(actionCard("Appeal", `Either party, before ${fmtTime(t.appeal_deadline)}. Needs at least 5 staked jurors. The jury judges the same frozen evidence.`, b, o2));
+    const [b3, o3] = actionButton("Finalize without appeal", "", (out) => write(out, "finalize_unappealed", "finalize_unappealed", [t.trade_id]));
+    acts.appendChild(actionCard("Finalize",
+      isPast(t.appeal_deadline) ? "The appeal window has closed. Anyone can finalize." : "Available after the appeal window closes.", b3, o3));
+  }
+
+  if (st === "appealed") {
+    const j = t.jury;
+    const saved = loadVote(t.trade_id);
+    const voteSel = h("select", null, OUTCOMES.map((x) => h("option", { value: x, text: x })));
+    const saltIn = h("input", { placeholder: "private salt", value: saved?.salt || "", autocapitalize: "off", spellcheck: "false" });
+    if (saved?.vote) voteSel.value = saved.vote;
+    const [bc, oc] = actionButton("Commit vote", "", async (out) => {
+      const salt = saltIn.value.trim() || randomSalt();
+      saltIn.value = salt;
+      saveVote(t.trade_id, voteSel.value, salt);
+      const hash = await sha256Hex(`${voteSel.value}:${salt}`);
+      return write(out, "commit_vote", "commit_vote", [t.trade_id, hash]);
+    });
+    acts.appendChild(actionCard("Commit vote (selected jurors only)",
+      `Open until ${fmtTime(j.commit_deadline)}. Your vote and salt are saved in this browser so you can reveal later.`,
+      h("label", { text: "Your vote" }), voteSel, h("label", { text: "Private salt (auto-generated if empty)" }), saltIn, bc, oc));
+
+    const rVote = h("select", null, OUTCOMES.map((x) => h("option", { value: x, text: x })));
+    const rSalt = h("input", { placeholder: "the same salt", value: saved?.salt || "", autocapitalize: "off", spellcheck: "false" });
+    if (saved?.vote) rVote.value = saved.vote;
+    const [br, or2] = actionButton("Reveal vote", "secondary", (out) =>
+      write(out, "reveal_vote", "reveal_vote", [t.trade_id, rVote.value, rSalt.value.trim()]));
+    acts.appendChild(actionCard("Reveal vote",
+      `Opens after ${fmtTime(j.commit_deadline)} and closes ${fmtTime(j.reveal_deadline)}. Must match your commit exactly.`,
+      h("label", { text: "Your vote (same as commit)" }), rVote, h("label", { text: "Same salt" }), rSalt, br, or2));
+
+    const [bf, of2] = actionButton("Finalize jury round", "", (out) => write(out, "finalize_jury", "finalize_jury", [t.trade_id]));
+    acts.appendChild(actionCard("Finalize jury",
+      isPast(j.reveal_deadline) ? "The reveal window has closed. Anyone can finalize." : `Available after ${fmtTime(j.reveal_deadline)}.`, bf, of2));
+  }
+
+  if (st === "finalized") {
+    acts.appendChild(h("a", { href: "#/withdraw", class: "card link", style: "text-align:center;font-weight:700" },
+      "Payouts are credited to balances. Open Balance to withdraw →"));
+  }
+
+  view.appendChild(acts);
+  view.appendChild(h("button", { class: "ghost", text: "Refresh this trade", onclick: () => renderTrade(id) }));
+}
+
+/* ---------- Jury ---------- */
+$("jRegisterBtn").addEventListener("click", async () => {
+  const out = $("jOut");
+  const wei = genToWei($("jStake").value);
+  if (wei === null || wei <= 0n) return showOut(out, "Enter a valid positive stake in GEN.", "err");
+  await write(out, "register_juror", "register_juror", [], wei);
+});
+$("jUnstakeBtn").addEventListener("click", async () => {
+  const out = $("jOut");
+  const wei = genToWei($("jUnstake").value);
+  if (wei === null || wei <= 0n) return showOut(out, "Enter a valid positive amount in GEN.", "err");
+  await write(out, "unstake_juror", "unstake_juror", [wei.toString()]);
+});
+$("jLookupBtn").addEventListener("click", async () => {
+  const out = $("jLookupOut");
+  const addr = $("jAddr").value.trim() || account;
+  if (!addr) return showOut(out, "Enter an address or connect a wallet.", "err");
   try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_trade', args: [id] });
-    const trade = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    document.getElementById('acceptStake').value = weiToGenString(trade.stake_amount);
-    showOut(out, `Loaded: ${weiToGenString(trade.stake_amount)} GEN`, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
+    const j = await readJson("get_juror", [addr]);
+    showOut(out, j && j.stake !== undefined ? { ...j, stake_gen: weiToGen(j.stake) } : j, "ok");
+  } catch (e) { showOut(out, "Error: " + (e?.message || String(e)), "err"); }
 });
 
-document.getElementById('acceptBtn').addEventListener('click', async () => {
-  const out = document.getElementById('acceptOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('acceptId').value.trim();
-  const stakeWei = genToWei(document.getElementById('acceptStake').value.trim());
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  if (stakeWei === null || stakeWei <= 0n) return showOut(out, 'Enter a valid stake (use "load exact amount").', 'err');
-  await writeAndReport(out, 'accept_trade', 'accept_trade', [id], stakeWei);
+/* ---------- Balance ---------- */
+async function refreshPending() {
+  if (!account) { $("myPending").textContent = "connect wallet"; return; }
+  try { $("myPending").textContent = weiToGen(await read("get_pending_withdrawal", [account])) + " GEN"; }
+  catch (e) { $("myPending").textContent = "—"; }
+}
+async function refreshContractBalance() {
+  try { $("contractBal").textContent = weiToGen(await read("get_contract_balance")) + " GEN"; }
+  catch (e) { $("contractBal").textContent = "—"; }
+}
+$("checkPendingBtn").addEventListener("click", refreshPending);
+$("withdrawBtn").addEventListener("click", async () => {
+  const r = await write($("wOut"), "withdraw", "withdraw", []);
+  if (r) refreshPending();
+});
+$("wLookupBtn").addEventListener("click", async () => {
+  const out = $("wLookupOut");
+  const addr = $("wAddr").value.trim();
+  if (!addr) return showOut(out, "Enter an address.", "err");
+  try { const raw = await read("get_pending_withdrawal", [addr]); showOut(out, `${weiToGen(raw)} GEN (${raw} wei)`, "ok"); }
+  catch (e) { showOut(out, "Error: " + (e?.message || String(e)), "err"); }
 });
 
-document.getElementById('cancelBtn').addEventListener('click', async () => {
-  const out = document.getElementById('acceptOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('acceptId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  await writeAndReport(out, 'cancel_trade', 'cancel_trade', [id]);
-});
-
-// ---------- 3: Submit Evidence ----------
-document.getElementById('evidenceBtn').addEventListener('click', async () => {
-  const out = document.getElementById('evidenceOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('evidenceId').value.trim();
-  const urls = parseCommaList(document.getElementById('evidenceUrls').value);
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  if (urls.length === 0) return showOut(out, 'Enter at least one evidence URL.', 'err');
-  await writeAndReport(out, 'submit_evidence', 'submit_evidence', [id, urls]);
-});
-
-// ---------- 4: Tier-1 Resolve / Finalize ----------
-document.getElementById('resolveBtn').addEventListener('click', async () => {
-  const out = document.getElementById('resolveOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('resolveId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  await writeAndReport(out, 'resolve_tier1', 'resolve_tier1', [id]);
-});
-document.getElementById('finalizeUnappealedBtn').addEventListener('click', async () => {
-  const out = document.getElementById('resolveOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('resolveId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  await writeAndReport(out, 'finalize_unappealed', 'finalize_unappealed', [id]);
-});
-
-// ---------- 5: Juror registry ----------
-document.getElementById('registerJurorBtn').addEventListener('click', async () => {
-  const out = document.getElementById('jurorOut');
-  if (!requireClient(out)) return;
-  const wei = genToWei(document.getElementById('jurorStake').value.trim());
-  if (wei === null || wei <= 0n) return showOut(out, 'Enter a valid positive stake in GEN.', 'err');
-  await writeAndReport(out, 'register_juror', 'register_juror', [], wei);
-});
-document.getElementById('unstakeBtn').addEventListener('click', async () => {
-  const out = document.getElementById('jurorOut');
-  if (!requireClient(out)) return;
-  const amount = document.getElementById('unstakeAmount').value.trim();
-  if (!amount) return showOut(out, 'Enter an amount in wei.', 'err');
-  await writeAndReport(out, 'unstake_juror', 'unstake_juror', [amount]);
-});
-
-// ---------- 6: Appeal ----------
-document.getElementById('appealBtn').addEventListener('click', async () => {
-  const out = document.getElementById('appealOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('appealId').value.trim();
-  const wei = genToWei(document.getElementById('appealBond').value.trim());
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  if (wei === null || wei <= 0n) return showOut(out, 'Enter the exact bond amount in GEN (20% of the trade stake, clamped).', 'err');
-  await writeAndReport(out, 'appeal', 'appeal', [id], wei);
-});
-
-// ---------- 7: Commit ----------
-document.getElementById('commitBtn').addEventListener('click', async () => {
-  const out = document.getElementById('commitOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('commitId').value.trim();
-  const vote = document.getElementById('commitVote').value;
-  const salt = document.getElementById('commitSalt').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  if (!salt) return showOut(out, 'Enter a private salt (any random string) — you will need it again to reveal.', 'err');
-  const hash = await commitHash(vote, salt);
-  await writeAndReport(out, 'commit_vote', 'commit_vote', [id, hash]);
-});
-
-// ---------- 8: Reveal ----------
-document.getElementById('revealBtn').addEventListener('click', async () => {
-  const out = document.getElementById('revealOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('revealId').value.trim();
-  const vote = document.getElementById('revealVote').value;
-  const salt = document.getElementById('revealSalt').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  if (!salt) return showOut(out, 'Enter the exact salt you committed with.', 'err');
-  await writeAndReport(out, 'reveal_vote', 'reveal_vote', [id, vote, salt]);
-});
-
-// ---------- 9: Finalize Jury ----------
-document.getElementById('finalizeJuryBtn').addEventListener('click', async () => {
-  const out = document.getElementById('finalizeJuryOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('finalizeJuryId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  await writeAndReport(out, 'finalize_jury', 'finalize_jury', [id]);
-});
-
-// ---------- 10: Withdraw ----------
-document.getElementById('withdrawBtn').addEventListener('click', async () => {
-  const out = document.getElementById('withdrawOut');
-  if (!requireClient(out)) return;
-  await writeAndReport(out, 'withdraw', 'withdraw', []);
-});
-document.getElementById('checkPendingBtn').addEventListener('click', async () => {
-  const out = document.getElementById('withdrawOut');
-  if (!account) return showOut(out, 'Connect a wallet first.', 'err');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_pending_withdrawal', args: [account] });
-    showOut(out, `Pending: ${weiToGenString(raw)} GEN (${raw} wei)`, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
-
-// ---------- Look up / verify (read-only) ----------
-document.getElementById('readAgreementBtn').addEventListener('click', async () => {
-  const out = document.getElementById('readOut');
-  const id = document.getElementById('readId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_trade', args: [id] });
-    showOut(out, typeof raw === 'string' ? JSON.parse(raw) : raw, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
-document.getElementById('verifySelectionBtn').addEventListener('click', async () => {
-  const out = document.getElementById('readOut');
-  const id = document.getElementById('readId').value.trim();
-  if (!id) return showOut(out, 'Enter an trade ID.', 'err');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'verify_jury_selection', args: [id] });
-    showOut(out, typeof raw === 'string' ? JSON.parse(raw) : raw, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
-document.getElementById('readJurorBtn').addEventListener('click', async () => {
-  const out = document.getElementById('readOut');
-  const addr = document.getElementById('readAddr').value.trim();
-  if (!addr) return showOut(out, 'Enter an address.', 'err');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_juror', args: [addr] });
-    showOut(out, typeof raw === 'string' ? JSON.parse(raw) : raw, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
-document.getElementById('readPendingBtn').addEventListener('click', async () => {
-  const out = document.getElementById('readOut');
-  const addr = document.getElementById('readAddr').value.trim();
-  if (!addr) return showOut(out, 'Enter an address.', 'err');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_pending_withdrawal', args: [addr] });
-    showOut(out, `${weiToGenString(raw)} GEN (${raw} wei)`, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
-document.getElementById('totalAgreementsBtn').addEventListener('click', async () => {
-  const out = document.getElementById('readOut');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'total_trades', args: [] });
-    showOut(out, `Total trades: ${raw}`, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
-document.getElementById('contractBalanceBtn').addEventListener('click', async () => {
-  const out = document.getElementById('readOut');
-  try {
-    const raw = await readClient.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_contract_balance', args: [] });
-    showOut(out, `Contract balance: ${weiToGenString(raw)} GEN (${raw} wei)`, 'ok');
-  } catch (err) { showOut(out, 'Error: ' + (err?.message || String(err)), 'err'); }
-});
+/* ---------- router ---------- */
+function route() {
+  const hash = location.hash || "#/";
+  const m = hash.match(/^#\/trade\/(.+)$/);
+  let name = "home";
+  if (m) name = "trade";
+  else if (hash.startsWith("#/create")) name = "create";
+  else if (hash.startsWith("#/jury")) name = "jury";
+  else if (hash.startsWith("#/withdraw")) name = "withdraw";
+  document.querySelectorAll(".route").forEach((r) => r.classList.toggle("active", r.id === "route-" + name));
+  document.querySelectorAll(".tab-link").forEach((a) => a.classList.toggle("active", a.dataset.tab === (name === "trade" ? "home" : name)));
+  if (name === "home") loadList();
+  if (name === "trade") renderTrade(decodeURIComponent(m[1]));
+  if (name === "withdraw") { refreshPending(); refreshContractBalance(); }
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+route();
 </script>
 </body>
 </html>
