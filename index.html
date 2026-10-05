@@ -239,6 +239,16 @@
       <div class="row" style="margin-top:14px"><span class="muted">Total held by contract</span><b id="contractBal">—</b></div>
       <div class="out" id="wLookupOut"></div>
     </div>
+    <div class="card">
+      <h3>Fund a Studio account (testnet only)</h3>
+      <p class="hint">GenLayer Studio is a simulator, so it can credit test GEN to any address. This asks the Studio RPC to do it. It is an experimental call: if the response shows an error, the Studio version may not support it.</p>
+      <label for="fundAddr">Address (blank = connected wallet)</label>
+      <input id="fundAddr" placeholder="0x…" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label for="fundAmt">Amount (whole GEN, 1 to 100)</label>
+      <input id="fundAmt" inputmode="numeric" value="10">
+      <button class="secondary" id="fundBtn">Request test GEN</button>
+      <div class="out" id="fundOut"></div>
+    </div>
   </section>
 
 </main>
@@ -680,7 +690,10 @@ async function renderTrade(id) {
   if (st === "created") {
     const [b1, o1] = actionButton(`Accept and send ${weiToGen(t.stake_amount)} GEN`, "", (out) =>
       write(out, "accept_trade", "accept_trade", [t.trade_id], BigInt(t.stake_amount)));
-    acts.appendChild(actionCard("Accept this trade", "Only party B can accept, with exactly the same stake. Check the allowed evidence domains first.", b1, o1));
+    const wrongWallet = account && !isB;
+    acts.appendChild(actionCard("Accept this trade",
+      wrongWallet ? "You are connected as " + short(account) + ", which is not party B. Reconnect as " + short(t.party_b) + " to accept; any other wallet will be rejected by the contract."
+                  : "Only party B can accept, with exactly the same stake. Check the allowed evidence domains first.", b1, o1));
     const [b2, o2] = actionButton("Cancel trade", "danger", (out) => write(out, "cancel_trade", "cancel_trade", [t.trade_id]));
     acts.appendChild(actionCard("Cancel", "Only party A, and only before acceptance. Your stake is refunded.", b2, o2));
   }
@@ -795,6 +808,26 @@ $("wLookupBtn").addEventListener("click", async () => {
   if (!addr) return showOut(out, "Enter an address.", "err");
   try { const raw = await read("get_pending_withdrawal", [addr]); showOut(out, `${weiToGen(raw)} GEN (${raw} wei)`, "ok"); }
   catch (e) { showOut(out, "Error: " + (e?.message || String(e)), "err"); }
+});
+
+/* ---------- test funding (Studio simulator) ---------- */
+$("fundBtn").addEventListener("click", async () => {
+  const out = $("fundOut");
+  const addr = $("fundAddr").value.trim() || account;
+  const gen = parseInt($("fundAmt").value, 10);
+  if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) return showOut(out, "Enter a valid 0x address or connect a wallet.", "err");
+  if (!Number.isInteger(gen) || gen < 1 || gen > 100) return showOut(out, "Amount must be a whole number from 1 to 100.", "err");
+  const url = studionet.rpcUrls?.default?.http?.[0];
+  if (!url) return showOut(out, "No RPC URL available for this network.", "err");
+  try {
+    showOut(out, "Requesting…");
+    const amountWei = Number(BigInt(gen) * WEI_PER_GEN);
+    const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "sim_fundAccount", params: [addr, amountWei] }) });
+    const body = await res.json();
+    if (body.error) return showOut(out, "The Studio RPC refused: " + JSON.stringify(body.error), "err");
+    showOut(out, "Request accepted. Check the address balance in your wallet in a few seconds.\n" + JSON.stringify(body.result ?? body), "ok");
+  } catch (e) { showOut(out, "Request failed: " + (e?.message || String(e)), "err"); }
 });
 
 /* ---------- router ---------- */
