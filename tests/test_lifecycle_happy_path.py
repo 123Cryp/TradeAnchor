@@ -25,7 +25,7 @@ class TestHappyPathFulfilled(unittest.TestCase):
             PARTY_B_ADDRESS, "Send 1 BTC to the agreed receiving address",
             "Full amount must arrive at the recorded receiving address",
             "bc1qxyz0000000000000000000000000000000000", "1 BTC",
-            future_iso(7200),
+            "example.com", future_iso(7200),
         )
 
         set_caller(PARTY_B_ADDRESS)
@@ -66,7 +66,7 @@ class TestHappyPathFulfilled(unittest.TestCase):
             PARTY_B_ADDRESS, "Send 1 BTC to the agreed receiving address",
             "Full amount must arrive at the recorded receiving address",
             "bc1qxyz0000000000000000000000000000000000", "1 BTC",
-            future_iso(7200),
+            "example.com", future_iso(7200),
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 100, trade_id)

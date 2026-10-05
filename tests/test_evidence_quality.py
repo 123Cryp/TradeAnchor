@@ -35,7 +35,7 @@ class TestMinimumEvidenceSources(unittest.TestCase):
             PARTY_B_ADDRESS, "OTC swap requiring independent corroboration",
             "At least the configured number of independent sources must agree",
             "0x" + "aa" * 20, "500",
-            future_iso(7200), min_sources,
+            "example.com", future_iso(7200), min_sources,
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 1000, trade_id)
@@ -89,7 +89,7 @@ class TestMinimumEvidenceSources(unittest.TestCase):
         with self.assertRaises(Exception):
             call_payable(
                 self.c, "create_trade", 1000,
-                PARTY_B_ADDRESS, "obj", "criteria", "0x" + "aa" * 20, "", future_iso(7200), 0,
+                PARTY_B_ADDRESS, "obj", "criteria", "0x" + "aa" * 20, "", "example.com", future_iso(7200), 0,
             )
 
 

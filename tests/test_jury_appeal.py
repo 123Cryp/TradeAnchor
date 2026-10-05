@@ -32,7 +32,7 @@ class JuryTestBase(unittest.TestCase):
             PARTY_B_ADDRESS, "Send 2 ETH to the agreed receiving address",
             "Full amount must arrive at the recorded receiving address",
             "0x" + "aa" * 20, "2 ETH",
-            future_iso(7200),
+            "example.com", future_iso(7200),
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 1000, self.trade_id)
@@ -83,7 +83,7 @@ class TestAppealAndJurySelection(JuryTestBase):
         set_caller(PARTY_A_ADDRESS)
         trade_id = call_payable(
             c2, "create_trade", 1000, PARTY_B_ADDRESS, "obj", "crit",
-            "0x" + "aa" * 20, "", future_iso(7200)
+            "0x" + "aa" * 20, "", "example.com", future_iso(7200)
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(c2, "accept_trade", 1000, trade_id)

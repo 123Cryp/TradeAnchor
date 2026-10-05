@@ -37,7 +37,7 @@ class TestOnChainEvidenceAnchoring(unittest.TestCase):
             PARTY_B_ADDRESS, "Send 1 ETH to the agreed receiving address",
             "Full amount must arrive at the recorded receiving address",
             EXPECTED_ADDRESS, expected_amount,
-            future_iso(7200),
+            "example.com", future_iso(7200),
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 100, trade_id)
@@ -117,7 +117,7 @@ class TestOnChainEvidenceAnchoring(unittest.TestCase):
             call_payable(
                 self.c, "create_trade", 100,
                 PARTY_B_ADDRESS, "terms", "criteria", "   ", "1 ETH",
-                future_iso(7200),
+                "example.com", future_iso(7200),
             )
 
 
