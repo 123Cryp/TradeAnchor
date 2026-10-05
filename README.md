@@ -28,6 +28,8 @@ that address — and there's a **deterministic code-level backstop**
 `TRADE_COMPLETED` without confirming `anchor_match`, the outcome is
 forced down to `UNDETERMINED` regardless of what the model says.
 
+`create_trade` also records `allowed_evidence_domains` on-chain (for example `etherscan.io, basescan.org`). The counterparty sees the list before accepting, and `submit_evidence` rejects any URL that is not https, carries embedded credentials, or is not on one of those domains or their subdomains. A party therefore cannot host its own page containing the expected address and submit it as evidence.
+
 Everything else — the frozen `EvidenceSnapshot`, the staked
 commit-reveal jury, the bounded GenLayer plausibility check on the
 jury's majority, on-chain bounded reputation, and strict
@@ -66,7 +68,7 @@ project in this series — no state ever neither pays nor refunds.
 
 ## Tests
 
-29 offline unit tests against a self-written `genlayer` SDK stub
+38 offline unit tests against a self-written `genlayer` SDK stub
 (`tests/genlayer_stub/`), no `pip install` required:
 
 ```
@@ -76,9 +78,19 @@ python3 -m unittest discover -s tests -v
 Covers the full lifecycle, evidence-quality/deduplication rules, jury
 selection/commit-reveal/slashing/reputation, and — specific to this
 project — the on-chain anchor-match backstop
-(`tests/test_anchor_match.py`).
+(`tests/test_anchor_match.py`) and the evidence-domain allowlist (`tests/test_evidence_domains.py`).
+
+## Live deployment
+
+GenLayer Studio: `0xd38960D5CD8afB30A531A1989F1A30ECc706893a`
+(https://explorer-studio.genlayer.com/address/0xd38960D5CD8afB30A531A1989F1A30ECc706893a)
+
+Verified live:
+
+- Evidence on an allowed domain that contains the expected receiving address: `TRADE_COMPLETED` with `anchor_match: true`.
+- Evidence on a domain outside the trade's allowed list (including look-alike hosts such as `allowed.com.evil.example`): `submit_evidence` is rejected and the trade stays `open` with no evidence locked.
+- Evidence that does not contain the expected address: forced down to `UNDETERMINED` by the code-level backstop (verified on an earlier deployment of the same logic).
 
 ## Status
 
-Contract and offline tests complete and passing. Not yet deployed live
-on GenLayer Studio or submitted to the portal.
+Contract and 38 offline tests complete and passing. The commit-reveal jury appeal path is inherited unchanged from Veridict and is covered by offline tests; it has not been exercised live on this deployment.

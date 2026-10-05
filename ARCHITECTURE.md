@@ -42,6 +42,10 @@ This is the genuine differentiator from Veridict — not a reskin — and
 is the reason this project exists as its own submission rather than
 being folded into Veridict's v1.1 roadmap.
 
+### Evidence-domain allowlist
+
+The anchor check alone is not enough: a party could write a page that contains the expected address and submit it as evidence. So `create_trade` also records `allowed_evidence_domains`, a comma-separated list normalized to lowercase hostnames. `party_b` sees it before matching the stake. `submit_evidence` parses each URL with `urllib.parse.urlsplit` and rejects any URL that is not https, has embedded credentials (`https://allowed.com@evil.example/`), or whose hostname is neither an allowed domain nor a subdomain of one (`notetherscan.io` and `etherscan.io.evil.example` do not match `etherscan.io`). One bad URL rejects the whole submission, and at least one domain is required.
+
 ## 3. Deliberately out of scope for v1
 
 - No relay/Base/USDC leg — same v1 simplification as Veridict, for the
@@ -57,6 +61,9 @@ being folded into Veridict's v1.1 roadmap.
   Veridict (see its class docstring).
 
 ## 4. Known limitations (disclosed, not hidden)
+
+- The allowlist trusts whoever operates the listed domains. It prevents self-hosted evidence, not a mistake in what a listed explorer shows.
+- Some explorer pages are rendered with JavaScript, so GenVM's plain HTML fetch may not see the address. Choose domains (or API endpoints on them) whose pages contain the data as server-rendered text.
 
 - The anchor-match backstop only prevents a false-positive
   `TRADE_COMPLETED`; it does not independently re-derive the correct

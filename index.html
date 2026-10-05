@@ -383,6 +383,9 @@
       <input type="text" id="expectedAddress" placeholder="0x... or bc1...">
       <label>Expected amount (optional — blank for a best-effort swap)</label>
       <input type="text" id="expectedAmount" placeholder="1 ETH">
+      <label>Allowed evidence domains <span class="tier-mark">agreed up front</span></label>
+      <input type="text" id="allowedDomains" placeholder="etherscan.io, basescan.org">
+      <p class="hint">Comma-separated. Recorded on-chain; the counterparty sees it before accepting. Evidence must be an https link on one of these domains (or a subdomain).</p>
       <div class="row2">
         <div><label>Your stake (GEN)</label><input type="text" id="stakeAmount" placeholder="1.0"></div>
         <div><label>Deadline</label><input type="datetime-local" id="deadline"></div>
@@ -796,6 +799,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
   const completionCriteria = document.getElementById('acceptanceCriteria').value.trim();
   const expectedAddress = document.getElementById('expectedAddress').value.trim();
   const expectedAmount = document.getElementById('expectedAmount').value.trim();
+  const allowedDomains = document.getElementById('allowedDomains').value.trim();
   const stakeGen = document.getElementById('stakeAmount').value.trim();
   const deadlineIso = localInputToIsoUtc(document.getElementById('deadline').value);
   const stakeWei = genToWei(stakeGen);
@@ -806,11 +810,12 @@ document.getElementById('createBtn').addEventListener('click', async () => {
   if (!tradeTerms) return showOut(out, 'Enter the trade terms.', 'err');
   if (!completionCriteria) return showOut(out, 'Enter the completion criteria.', 'err');
   if (!expectedAddress) return showOut(out, 'Enter the expected receiving address.', 'err');
+  if (!allowedDomains) return showOut(out, 'Enter at least one allowed evidence domain.', 'err');
   if (stakeWei === null || stakeWei <= 0n) return showOut(out, 'Enter a valid positive stake in GEN.', 'err');
   if (!deadlineIso) return showOut(out, 'Enter a valid deadline.', 'err');
   if (!Number.isInteger(minSources) || minSources < 1) return showOut(out, 'Minimum evidence sources must be a whole number of at least 1.', 'err');
 
-  const id = await writeAndReport(out, 'create_trade', 'create_trade', [partyB, tradeTerms, completionCriteria, expectedAddress, expectedAmount, deadlineIso, minSources], stakeWei);
+  const id = await writeAndReport(out, 'create_trade', 'create_trade', [partyB, tradeTerms, completionCriteria, expectedAddress, expectedAmount, allowedDomains, deadlineIso, minSources], stakeWei);
   if (id) {
     for (const el of ['acceptId','evidenceId','resolveId','appealId','readId']) {
       document.getElementById(el).value = String(id);
