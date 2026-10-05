@@ -551,9 +551,9 @@
 
 <footer>
   TradeAnchor — a two-tier GenLayer adjudication protocol. This page is a no-build
-  reference frontend (<code>genlayer-js</code>, no bundler). Edit
-  <code>CONTRACT_ADDRESS</code> in the script below after deploying
-  <code>contract.py</code>. Full trust model in <code>docs/ARCHITECTURE.md</code>
+  reference frontend (<code>genlayer-js</code>, no bundler) pointed at the
+  GenLayer Studio deployment shown above. To use your own deployment, change
+  <code>CONTRACT_ADDRESS</code> in the script below. Full trust model in <code>ARCHITECTURE.md</code>
   and the class docstring in <code>contract.py</code>, including known v1
   limitations disclosed up front.
 </footer>
@@ -567,7 +567,7 @@ import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
 // EDIT THIS after you deploy TradeAnchor's contract.py — paste the
 // deployed address here (from the Studio/explorer "Deployed at" field).
 // ------------------------------------------------------------------
-const CONTRACT_ADDRESS = "0x8ef5Ead3781315b533b488A19F249a92De5cB663";
+const CONTRACT_ADDRESS = "0xd38960D5CD8afB30A531A1989F1A30ECc706893a";
 
 document.getElementById('contractAddrText').textContent = CONTRACT_ADDRESS;
 
