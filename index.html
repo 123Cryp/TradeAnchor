@@ -321,6 +321,26 @@ function weiToGen(w) {
 /* ---------- wallet ---------- */
 let client = null;
 let account = null;
+let usingInjected = false;
+function hexChainId() { return "0x" + Number(studionet.id).toString(16); }
+async function ensureChain() {
+  if (!usingInjected || !window.ethereum) return;
+  const cur = await window.ethereum.request({ method: "eth_chainId" });
+  if (String(cur).toLowerCase() === hexChainId().toLowerCase()) return;
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hexChainId() }] });
+  } catch (e) {
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: hexChainId(),
+        chainName: studionet.name || "GenLayer Studio",
+        nativeCurrency: studionet.nativeCurrency || { name: "GEN", symbol: "GEN", decimals: 18 },
+        rpcUrls: studionet.rpcUrls?.default?.http || [],
+      }],
+    });
+  }
+}
 const readClient = createClient({ chain: studionet });
 
 function setStatus(on, label) {
@@ -347,7 +367,8 @@ async function connectInjected() {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     account = accounts[0];
     client = createClient({ chain: studionet, account });
-    try { if (typeof client.connect === "function") await client.connect("studionet"); } catch (e) {}
+    usingInjected = true;
+    try { await ensureChain(); } catch (e) { showOut(out, "Connected, but could not switch the wallet to the GenLayer Studio network: " + (e?.message || String(e)), "err"); }
     connected(short(account));
   } catch (e) { showOut(out, "Connection failed: " + (e?.message || String(e)), "err"); }
 }
@@ -359,6 +380,7 @@ function connectKey() {
   try {
     const acct = createAccount(pk);
     account = acct.address;
+    usingInjected = false;
     client = createClient({ chain: studionet, account: acct });
     connected(short(account));
   } catch (e) { showOut(out, "Could not use this key: " + (e?.message || String(e)), "err"); }
@@ -366,6 +388,7 @@ function connectKey() {
 function startTestSession() {
   const generated = createAccount();
   account = generated.address ?? generated;
+  usingInjected = false;
   client = createClient({ chain: studionet, account: generated });
   connected("Test · " + short(account));
 }
@@ -411,8 +434,13 @@ async function readJson(functionName, args = []) {
 async function write(out, label, functionName, args, valueWei) {
   if (!needClient(out)) return null;
   try {
-    showOut(out, `Sending ${label}…`);
-    const hash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName, args, value: valueWei ?? 0n });
+    showOut(out, `Sending ${label}… check your wallet for a confirmation request.`);
+    await ensureChain();
+    const slow = setTimeout(() => showOut(out,
+      `Still waiting for the wallet to answer ${label}.\nOpen your wallet app and look for a pending request. If none appears, the wallet is probably on the wrong network or did not receive the request.`), 20000);
+    let hash;
+    try { hash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName, args, value: valueWei ?? 0n }); }
+    finally { clearTimeout(slow); }
     showOut(out, `Sent ${short(hash)}. Waiting for finalization…`);
     const receipt = await client.waitForTransactionReceipt({ hash, status: "FINALIZED", interval: 4000, retries: 45 });
     const result = unwrap(receipt);
