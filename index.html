@@ -33,6 +33,8 @@
   .status-pill{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--paper);
                border-radius:999px;padding:7px 12px;font-size:13px;color:var(--ink-dim);cursor:pointer;max-width:60vw}
   .status-pill .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .status-pill.connected{background:var(--mint-soft);border-color:var(--mint);color:#14684C;font-weight:700}
+  .status-pill.connected .dot{background:var(--mint);box-shadow:0 0 0 3px rgba(47,166,127,.25)}
   .dot{width:9px;height:9px;border-radius:50%;background:#C9C4D6;flex:none}
   .dot.on{background:var(--mint);box-shadow:0 0 0 3px var(--mint-soft)}
 
@@ -106,6 +108,10 @@
   .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--iris);
         border-radius:50%;animation:s 0.8s linear infinite;vertical-align:-2px;margin-right:8px}
   @keyframes s{to{transform:rotate(360deg)}}
+  .sheet{position:fixed;inset:0;z-index:50;background:rgba(21,18,30,.45);display:flex;align-items:flex-end;justify-content:center}
+  .sheet[hidden]{display:none}
+  .sheet-card{background:var(--paper);width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;
+              padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
   footer{max-width:760px;margin:0 auto;padding:6px 16px 30px;color:var(--ink-faint);font-size:12.5px}
 </style>
 </head>
@@ -117,6 +123,24 @@
     <span class="dot" id="statusDot"></span><span class="label" id="statusText">Connect wallet</span>
   </div>
 </div></header>
+
+<div class="sheet" id="walletSheet" hidden>
+  <div class="sheet-card">
+    <div class="row"><h2>Connect</h2><button class="ghost" id="sheetClose" style="width:auto;margin:0;padding:8px 14px">Close</button></div>
+    <h3 style="margin-top:16px">Browser wallet</h3>
+    <p class="hint">MetaMask or any injected wallet. Open this page inside the wallet's own browser if your normal browser has none.</p>
+    <button id="connInjected">Connect browser wallet</button>
+    <h3 style="margin-top:22px">Private key (Studio accounts)</h3>
+    <p class="hint">Paste the private key of a GenLayer Studio account to act as that account. It stays in this tab's memory only and is never stored or sent anywhere except to sign your transactions. Use testnet keys only, never a key that holds real value.</p>
+    <input id="pkInput" type="password" placeholder="0x… (64 hex characters)" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <button class="secondary" id="connKey">Use this account</button>
+    <h3 style="margin-top:22px">Test session</h3>
+    <p class="hint">Generates a throwaway account for this tab. Good for reading and for trying the flow with a fresh address.</p>
+    <button class="ghost" id="connTest">Start test session</button>
+    <div class="out" id="connOut"></div>
+    <button class="ghost" id="connDisconnect" hidden>Disconnect</button>
+  </div>
+</div>
 
 <main class="wrap">
 
@@ -301,33 +325,67 @@ const readClient = createClient({ chain: studionet });
 
 function setStatus(on, label) {
   $("statusDot").classList.toggle("on", on);
+  $("walletPill").classList.toggle("connected", on);
   $("statusText").textContent = label;
 }
+const sheet = $("walletSheet");
+function openSheet() {
+  $("connDisconnect").hidden = !client;
+  $("connOut").style.display = "none";
+  sheet.hidden = false;
+}
+function closeSheet() { sheet.hidden = true; $("pkInput").value = ""; }
+function connected(label) { setStatus(true, label); closeSheet(); route(); }
+
 async function connectInjected() {
-  if (!window.ethereum) return false;
+  const out = $("connOut");
+  if (!window.ethereum) {
+    showOut(out, "No browser wallet found in this browser. Open this page inside your wallet app's browser, or use a private key below.", "err");
+    return;
+  }
   try {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     account = accounts[0];
     client = createClient({ chain: studionet, account });
-    setStatus(true, short(account));
-    return true;
-  } catch (e) { setStatus(false, "Connection rejected"); return false; }
+    try { if (typeof client.connect === "function") await client.connect("studionet"); } catch (e) {}
+    connected(short(account));
+  } catch (e) { showOut(out, "Connection failed: " + (e?.message || String(e)), "err"); }
+}
+function connectKey() {
+  const out = $("connOut");
+  let pk = $("pkInput").value.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(pk)) pk = "0x" + pk;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) return showOut(out, "That is not a valid private key: expected 64 hex characters, optionally starting with 0x.", "err");
+  try {
+    const acct = createAccount(pk);
+    account = acct.address;
+    client = createClient({ chain: studionet, account: acct });
+    connected(short(account));
+  } catch (e) { showOut(out, "Could not use this key: " + (e?.message || String(e)), "err"); }
 }
 function startTestSession() {
   const generated = createAccount();
   account = generated.address ?? generated;
   client = createClient({ chain: studionet, account: generated });
-  setStatus(true, "Test · " + short(account));
+  connected("Test · " + short(account));
 }
-async function onWalletPill() {
-  if (await connectInjected()) { route(); return; }
-  if (!window.ethereum) { startTestSession(); route(); }
+function disconnect() {
+  client = null; account = null;
+  setStatus(false, "Connect wallet");
+  closeSheet(); route();
 }
-$("walletPill").addEventListener("click", onWalletPill);
+$("walletPill").addEventListener("click", openSheet);
+$("sheetClose").addEventListener("click", closeSheet);
+sheet.addEventListener("click", (e) => { if (e.target === sheet) closeSheet(); });
+$("connInjected").addEventListener("click", connectInjected);
+$("connKey").addEventListener("click", connectKey);
+$("connTest").addEventListener("click", startTestSession);
+$("connDisconnect").addEventListener("click", disconnect);
 
 function needClient(out) {
   if (client) return true;
   showOut(out, "Tap the wallet button at the top to connect first.", "err");
+  openSheet();
   return false;
 }
 
