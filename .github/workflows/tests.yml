@@ -1,12 +1,11 @@
 name: Offline test suite
 
-# Runs TradeAnchor's 38 offline unit tests (against the stub `gl` SDK in
+# Runs TradeAnchor's offline unit tests (against the stub `gl` SDK in
 # tests/genlayer_stub) on every push and pull request. No network access
-# or live GenLayer node is required - these tests exercise the
+# or live GenLayer node is required: these tests exercise the
 # deterministic state-machine logic in contract.py directly in plain
 # Python. Live behavior (LLM outcomes, real consensus, real GEN transfers)
-# was separately verified by hand against GenLayer Studio's testnet - see
-# README.md.
+# is verified separately against GenLayer Studio - see README.md.
 
 on:
   push:
