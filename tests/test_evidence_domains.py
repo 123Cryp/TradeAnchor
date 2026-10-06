@@ -3,6 +3,7 @@ import json
 import unittest
 
 from _bootstrap import (
+    submit_and_lock,
     make_contract, set_caller, reset_transfers, call_payable,
     PARTY_A_ADDRESS, PARTY_B_ADDRESS,
 )
@@ -44,42 +45,42 @@ class TestEvidenceDomainAllowlist(unittest.TestCase):
 
     def test_allowed_domain_and_its_subdomain_are_accepted(self):
         trade_id = self._open_trade()
-        self.c.submit_evidence(trade_id, ["https://etherscan.io/tx/0xabc", "https://sepolia.etherscan.io/tx/0xabc"])
+        submit_and_lock(self.c, trade_id, ["https://etherscan.io/tx/0xabc", "https://sepolia.etherscan.io/tx/0xabc"])
         trade = json.loads(self.c.get_trade(trade_id))
         self.assertEqual(trade["status"], "evidence_locked")
 
     def test_self_hosted_page_on_other_domain_is_rejected(self):
         trade_id = self._open_trade()
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://raw.githubusercontent.com/me/x/main/fake.txt"])
+            submit_and_lock(self.c, trade_id, ["https://raw.githubusercontent.com/me/x/main/fake.txt"])
         trade = json.loads(self.c.get_trade(trade_id))
         self.assertEqual(trade["status"], "open")
 
     def test_lookalike_suffix_domain_is_rejected(self):
         trade_id = self._open_trade()
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://notetherscan.io/tx/0xabc"])
+            submit_and_lock(self.c, trade_id, ["https://notetherscan.io/tx/0xabc"])
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://etherscan.io.evil.example/tx/0xabc"])
+            submit_and_lock(self.c, trade_id, ["https://etherscan.io.evil.example/tx/0xabc"])
 
     def test_embedded_credentials_url_is_rejected(self):
         trade_id = self._open_trade()
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://etherscan.io:443@attacker.example/"])
+            submit_and_lock(self.c, trade_id, ["https://etherscan.io:443@attacker.example/"])
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://user:pw@etherscan.io/tx/0xabc"])
+            submit_and_lock(self.c, trade_id, ["https://user:pw@etherscan.io/tx/0xabc"])
 
     def test_non_https_scheme_is_rejected(self):
         trade_id = self._open_trade()
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["http://etherscan.io/tx/0xabc"])
+            submit_and_lock(self.c, trade_id, ["http://etherscan.io/tx/0xabc"])
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["ftp://etherscan.io/tx/0xabc"])
+            submit_and_lock(self.c, trade_id, ["ftp://etherscan.io/tx/0xabc"])
 
     def test_one_bad_url_among_good_ones_rejects_the_whole_submission(self):
         trade_id = self._open_trade()
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://etherscan.io/tx/0xabc", "https://evil.example/x"])
+            submit_and_lock(self.c, trade_id, ["https://etherscan.io/tx/0xabc", "https://evil.example/x"])
         trade = json.loads(self.c.get_trade(trade_id))
         self.assertIsNone(trade["evidence_snapshot"])
 

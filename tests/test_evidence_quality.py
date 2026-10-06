@@ -3,6 +3,7 @@ import json
 import unittest
 
 from _bootstrap import (
+    submit_and_lock,
     make_contract, set_caller, reset_transfers, call_payable,
     PARTY_A_ADDRESS, PARTY_B_ADDRESS,
 )
@@ -44,7 +45,7 @@ class TestMinimumEvidenceSources(unittest.TestCase):
     def test_default_minimum_is_one_source(self):
         trade_id = self._create()  # default min_evidence_sources
         set_caller(PARTY_B_ADDRESS)
-        self.c.submit_evidence(trade_id, ["https://example.com/only-source"])
+        submit_and_lock(self.c, trade_id, ["https://example.com/only-source"])
         trade = json.loads(self.c.get_trade(trade_id))
         self.assertEqual(trade["status"], "evidence_locked")
         self.assertEqual(trade["evidence_snapshot"]["accepted_source_count"], 1)
@@ -53,7 +54,7 @@ class TestMinimumEvidenceSources(unittest.TestCase):
         trade_id = self._create(min_sources=3)
         set_caller(PARTY_B_ADDRESS)
         with self.assertRaises(Exception):
-            self.c.submit_evidence(trade_id, ["https://a.example.com", "https://b.example.com"])
+            submit_and_lock(self.c, trade_id, ["https://a.example.com", "https://b.example.com"])
         # and the trade must remain open, not partially locked
         trade = json.loads(self.c.get_trade(trade_id))
         self.assertEqual(trade["status"], "open")
@@ -64,7 +65,7 @@ class TestMinimumEvidenceSources(unittest.TestCase):
         set_caller(PARTY_B_ADDRESS)
         # 3 raw URLs but only 1 distinct one -> must still fail the min=2 bar
         with self.assertRaises(Exception):
-            self.c.submit_evidence(
+            submit_and_lock(self.c, 
                 trade_id,
                 ["https://a.example.com", "https://a.example.com", "https://a.example.com "],  # trailing space variant
             )
@@ -74,7 +75,7 @@ class TestMinimumEvidenceSources(unittest.TestCase):
     def test_meeting_minimum_with_duplicates_present_locks_with_correct_count(self):
         trade_id = self._create(min_sources=2)
         set_caller(PARTY_B_ADDRESS)
-        self.c.submit_evidence(
+        submit_and_lock(self.c, 
             trade_id,
             ["https://a.example.com", "https://a.example.com", "https://b.example.com"],
         )

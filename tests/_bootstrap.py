@@ -12,7 +12,7 @@ _STUB_DIR = os.path.join(_THIS_DIR, "genlayer_stub")
 if _STUB_DIR not in sys.path:
     sys.path.insert(0, _STUB_DIR)
 
-_CONTRACT_PATH = os.path.join(os.path.dirname(_THIS_DIR), "contract.py")
+_CONTRACT_PATH = os.environ.get("TA_CONTRACT") or os.path.join(os.path.dirname(_THIS_DIR), "contract.py")
 _spec = importlib.util.spec_from_file_location("tradeanchor_contract", _CONTRACT_PATH)
 _contract_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_contract_module)
@@ -21,6 +21,11 @@ TradeAnchor = _contract_module.TradeAnchor
 gl = _contract_module.gl
 Address = _contract_module.Address
 u256 = _contract_module.u256
+
+# Production floors are 1e15 wei; tests use tiny stakes.
+TradeAnchor.MIN_STAKE = u256(1)
+TradeAnchor.MIN_JUROR_STAKE = u256(1)
+TradeAnchor.MIN_APPEAL_BOND = u256(1)
 
 
 def make_contract() -> "TradeAnchor":
@@ -83,3 +88,69 @@ def call_payable(contract, method_name: str, value: int, *args, **kwargs):
     finally:
         gl.message.value = u256(10**18)
     return result
+
+
+def submit_and_lock(contract, trade_id, urls):
+    """Submit evidence as the current caller, then (if the counterparty
+    has not submitted) move past the grace period and lock, mirroring
+    what a real caller does with submit_evidence + lock_evidence."""
+    import datetime as _dt
+    import json as _json
+    contract.submit_evidence(trade_id, urls)
+    trade = _json.loads(contract.get_trade(trade_id))
+    if trade["status"] == "open":
+        trade["evidence_lock_at"] = (
+            _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(seconds=5)
+        ).isoformat()
+        contract.trades[trade_id] = _json.dumps(trade, sort_keys=True)
+        contract.lock_evidence(trade_id)
+
+
+def pass_deadline(contract, trade_id):
+    """Move the trade deadline into the past so non-completion outcomes
+    are no longer treated as premature."""
+    import datetime as _dt
+    import json as _json
+    t = _json.loads(contract.trades[trade_id])
+    t["deadline"] = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(seconds=5)).isoformat()
+    contract.trades[trade_id] = _json.dumps(t, sort_keys=True)
+
+
+def age_jurors(contract):
+    """Backdate every juror's registration so they were registered before
+    any trade was accepted (jurors registered after acceptance are not
+    eligible for that trade)."""
+    import json as _json
+    for key in list(contract.jurors.keys()):
+        rec = _json.loads(contract.jurors[key])
+        rec["registered_at"] = "2000-01-01T00:00:00+00:00"
+        rec["stake_updated_at"] = "2000-01-01T00:00:00+00:00"
+        contract.jurors[key] = _json.dumps(rec, sort_keys=True)
+
+
+def draw_jury(contract, trade_id, beacon="fixed-test-beacon"):
+    """Move an appeal past its window and draw the jury with a fixed
+    beacon (the randomness round is mocked)."""
+    import datetime as _dt
+    import json as _json
+    from unittest.mock import patch as _patch
+    t = _json.loads(contract.trades[trade_id])
+    now = _dt.datetime.now(_dt.timezone.utc)
+    t["appeal_deadline"] = (now - _dt.timedelta(seconds=300)).isoformat()
+    t["appeal"]["draw_round"] = int((now.timestamp() - 240 - 1595431050) // 30 + 1)
+    contract.trades[trade_id] = _json.dumps(t, sort_keys=True)
+    with _patch.object(gl.nondet.web, "render",
+                       return_value=_json.dumps({"round": t["appeal"]["draw_round"], "randomness": beacon})):
+        contract.draw_jury(trade_id)
+
+
+def set_frozen(contract, trade_id, content, url="https://example.com/x"):
+    """Replace the frozen evidence content of a trade with a consistent
+    set (hash and root computed the way the contract does)."""
+    import hashlib as _h
+    import json as _json
+    t = _json.loads(contract.trades[trade_id])
+    page = {"url": url, "excerpt_sha256": _h.sha256(content.encode()).hexdigest(), "full_content_sha256": _h.sha256(content.encode()).hexdigest(), "tx": None, "content": content}
+    t["evidence_content"] = [page]
+    t["evidence_content_root"] = _contract_module._evidence_root([page])
+    contract.trades[trade_id] = _json.dumps(t, sort_keys=True)

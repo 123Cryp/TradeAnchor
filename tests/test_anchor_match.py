@@ -4,6 +4,8 @@ import unittest
 from unittest.mock import patch
 
 from _bootstrap import (
+    pass_deadline,
+    submit_and_lock,
     make_contract, set_caller, reset_transfers, call_payable, gl,
     PARTY_A_ADDRESS, PARTY_B_ADDRESS,
 )
@@ -41,13 +43,14 @@ class TestOnChainEvidenceAnchoring(unittest.TestCase):
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 100, trade_id)
-        self.c.submit_evidence(trade_id, ["https://explorer.example.com/tx/abc"])
+        submit_and_lock(self.c, trade_id, ["https://explorer.example.com/tx/abc"])
         return trade_id
 
     def test_llm_claiming_completed_without_confirming_anchor_is_downgraded(self):
         """Model says TRADE_COMPLETED but never confirms anchor_match -
         must be forced to UNDETERMINED regardless of the claimed outcome."""
         trade_id = self._create_and_lock()
+        pass_deadline(self.c, trade_id)
         with patch.object(gl.nondet.web, "render", side_effect=lambda url, mode="text": "an unrelated page with no address"), \
              patch.object(gl.nondet, "exec_prompt",
                           side_effect=lambda p, response_format="json": {"outcome": "TRADE_COMPLETED", "reasoning": "looks fine"}):
@@ -60,6 +63,7 @@ class TestOnChainEvidenceAnchoring(unittest.TestCase):
         """Model explicitly returns anchor_match: false alongside a
         TRADE_COMPLETED claim - still forced to UNDETERMINED."""
         trade_id = self._create_and_lock()
+        pass_deadline(self.c, trade_id)
         with patch.object(gl.nondet.web, "render", side_effect=lambda url, mode="text": "some evidence text"), \
              patch.object(gl.nondet, "exec_prompt",
                           side_effect=lambda p, response_format="json": {
@@ -92,6 +96,7 @@ class TestOnChainEvidenceAnchoring(unittest.TestCase):
         untouched regardless of anchor_match - the backstop only ever
         downgrades a TRADE_COMPLETED claim, never other outcomes."""
         trade_id = self._create_and_lock()
+        pass_deadline(self.c, trade_id)
         with patch.object(gl.nondet.web, "render", side_effect=lambda url, mode="text": "nothing sent"), \
              patch.object(gl.nondet, "exec_prompt",
                           side_effect=lambda p, response_format="json": {

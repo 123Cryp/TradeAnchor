@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from _bootstrap import (
+    submit_and_lock,
     make_contract, set_caller, reset_transfers, call_payable,
     PARTY_A_ADDRESS, PARTY_B_ADDRESS, gl,
 )
@@ -32,7 +33,7 @@ class TestHappyPathFulfilled(unittest.TestCase):
         call_payable(self.c, "accept_trade", 100, trade_id)
 
         set_caller(PARTY_B_ADDRESS)
-        self.c.submit_evidence(trade_id, ["https://example.com/explorer/tx123"])
+        submit_and_lock(self.c, trade_id, ["https://example.com/explorer/tx123"])
 
         with patch.object(gl.nondet.web, "render", side_effect=lambda url, mode="text": "tx to bc1qxyz0000000000000000000000000000000000 for 1 BTC, confirmed"), \
              patch.object(gl.nondet, "exec_prompt",
@@ -70,7 +71,7 @@ class TestHappyPathFulfilled(unittest.TestCase):
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 100, trade_id)
-        self.c.submit_evidence(trade_id, ["https://example.com/explorer/tx456"])
+        submit_and_lock(self.c, trade_id, ["https://example.com/explorer/tx456"])
 
         with patch.object(gl.nondet.web, "render", side_effect=lambda url, mode="text": "tx to bc1qxyz0000000000000000000000000000000000 for 1 BTC, confirmed"), \
              patch.object(gl.nondet, "exec_prompt",

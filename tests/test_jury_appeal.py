@@ -5,6 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from _bootstrap import (
+    pass_deadline, draw_jury, set_frozen, age_jurors,
+    submit_and_lock,
     make_contract, set_caller, reset_transfers, call_payable, gl,
     PARTY_A_ADDRESS, PARTY_B_ADDRESS, STRANGER_ADDRESS, JUROR_ADDRESSES,
 )
@@ -14,8 +16,10 @@ def future_iso(seconds):
     return (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)).isoformat()
 
 
-def commit_hash(vote, salt):
-    return hashlib.sha256(f"{vote}:{salt}".encode()).hexdigest()
+def commit_hash(vote, salt, trade_id="trade_0"):
+    from _bootstrap import gl as _gl
+    juror = str(_gl.message.sender_address).lower()
+    return hashlib.sha256(f"{vote}:{salt}:{juror}:{trade_id}".encode()).hexdigest()
 
 
 class JuryTestBase(unittest.TestCase):
@@ -36,7 +40,8 @@ class JuryTestBase(unittest.TestCase):
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(self.c, "accept_trade", 1000, self.trade_id)
-        self.c.submit_evidence(self.trade_id, ["https://example.com/audit-report"])
+        submit_and_lock(self.c, self.trade_id, ["https://example.com/audit-report"])
+        pass_deadline(self.c, self.trade_id)
 
         with patch.object(gl.nondet.web, "render", side_effect=lambda url, mode="text": "partial audit only"), \
              patch.object(gl.nondet, "exec_prompt",
@@ -47,11 +52,12 @@ class JuryTestBase(unittest.TestCase):
         for i, addr in enumerate(self.jurors):
             set_caller(addr)
             call_payable(self.c, "register_juror", 1000 + i * 100)
+        age_jurors(self.c)
 
     def do_appeal(self, appellant_address=PARTY_A_ADDRESS):
         set_caller(appellant_address)
-        with patch.object(gl.nondet.web, "render", return_value='{"randomness": "fixed-test-beacon"}'):
-            call_payable(self.c, "appeal", 200, self.trade_id)  # 20% of 1000
+        call_payable(self.c, "appeal", 200, self.trade_id)  # 20% of 1000
+        draw_jury(self.c, self.trade_id)
         return json.loads(self.c.get_trade(self.trade_id))
 
 
@@ -87,7 +93,8 @@ class TestAppealAndJurySelection(JuryTestBase):
         )
         set_caller(PARTY_B_ADDRESS)
         call_payable(c2, "accept_trade", 1000, trade_id)
-        c2.submit_evidence(trade_id, ["https://example.com/x"])
+        submit_and_lock(c2, trade_id, ["https://example.com/x"])
+        pass_deadline(c2, trade_id)
         with patch.object(gl.nondet.web, "render", return_value="x"), \
              patch.object(gl.nondet, "exec_prompt", return_value={"outcome": "TRADE_BREACHED", "reasoning": "x"}):
             c2.resolve_tier1(trade_id)
@@ -95,6 +102,7 @@ class TestAppealAndJurySelection(JuryTestBase):
         for addr in JUROR_ADDRESSES[:2]:
             set_caller(addr)
             call_payable(c2, "register_juror", 500)
+        age_jurors(c2)
         set_caller(PARTY_A_ADDRESS)
         with patch.object(gl.nondet.web, "render", return_value='{"randomness": "x"}'):
             with self.assertRaises(Exception):
@@ -118,12 +126,12 @@ class TestCommitReveal(JuryTestBase):
         non_juror = [a for a in JUROR_ADDRESSES if a.lower() not in [s.lower() for s in self.selected]][0]
         set_caller(non_juror)
         with self.assertRaises(Exception):
-            self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "salt"))
+            self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "salt", self.trade_id))
 
     def test_reveal_must_match_commit(self):
         juror = self.selected[0]
         set_caller(juror)
-        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "saltA"))
+        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "saltA", self.trade_id))
         self._open_reveal()
         set_caller(juror)
         with self.assertRaises(Exception):
@@ -133,21 +141,21 @@ class TestCommitReveal(JuryTestBase):
     def test_commit_cannot_be_changed(self):
         juror = self.selected[0]
         set_caller(juror)
-        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "s1"))
+        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "s1", self.trade_id))
         with self.assertRaises(Exception):
-            self.c.commit_vote(self.trade_id, commit_hash("TRADE_COMPLETED", "s2"))
+            self.c.commit_vote(self.trade_id, commit_hash("TRADE_COMPLETED", "s2", self.trade_id))
 
     def test_cannot_reveal_before_commit_window_closes(self):
         juror = self.selected[0]
         set_caller(juror)
-        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "s1"))
+        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "s1", self.trade_id))
         with self.assertRaises(Exception):
             self.c.reveal_vote(self.trade_id, "TRADE_BREACHED", "s1")
 
     def test_cannot_replay_a_reveal(self):
         juror = self.selected[0]
         set_caller(juror)
-        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "s1"))
+        self.c.commit_vote(self.trade_id, commit_hash("TRADE_BREACHED", "s1", self.trade_id))
         self._open_reveal()
         set_caller(juror)
         self.c.reveal_vote(self.trade_id, "TRADE_BREACHED", "s1")
@@ -168,7 +176,7 @@ class TestFinalizeJury(JuryTestBase):
             vote = votes.get(addr.lower())
             if vote is not None:
                 set_caller(addr)
-                self.c.commit_vote(self.trade_id, commit_hash(vote, salts[addr]))
+                self.c.commit_vote(self.trade_id, commit_hash(vote, salts[addr], self.trade_id))
 
         trade = json.loads(self.c.get_trade(self.trade_id))
         trade["jury"]["commit_deadline"] = (
@@ -193,7 +201,8 @@ class TestFinalizeJury(JuryTestBase):
         votes[self.selected[4].lower()] = "TRADE_BREACHED"
         self._commit_and_reveal(votes)
 
-        with patch.object(gl.nondet, "exec_prompt", return_value={"plausible": True}):
+        set_frozen(self.c, self.trade_id, "payment of 2 ETH sent to " + "0x" + "aa" * 20)
+        with patch.object(gl.nondet, "exec_prompt", return_value={"outcome": "TRADE_COMPLETED"}):
             self.c.finalize_jury(self.trade_id)
 
         final_agreement = json.loads(self.c.get_trade(self.trade_id))
@@ -212,7 +221,7 @@ class TestFinalizeJury(JuryTestBase):
         # majority agrees WITH tier1 (TRADE_BREACHED) -> appellant loses, bond forfeited
         votes = {addr.lower(): "TRADE_BREACHED" for addr in self.selected}
         self._commit_and_reveal(votes)
-        with patch.object(gl.nondet, "exec_prompt", return_value={"plausible": True}):
+        with patch.object(gl.nondet, "exec_prompt", return_value={"outcome": "TRADE_BREACHED"}):
             self.c.finalize_jury(self.trade_id)
 
         final_agreement = json.loads(self.c.get_trade(self.trade_id))
@@ -228,7 +237,7 @@ class TestFinalizeJury(JuryTestBase):
     def test_unverified_majority_slashes_nobody_for_disagreeing_but_slashes_non_reveal(self):
         votes = {addr.lower(): "TRADE_COMPLETED" for addr in self.selected[:4]}  # 5th never reveals
         self._commit_and_reveal(votes)
-        with patch.object(gl.nondet, "exec_prompt", return_value={"plausible": False}):
+        with patch.object(gl.nondet, "exec_prompt", return_value={"outcome": "UNDETERMINED"}):
             self.c.finalize_jury(self.trade_id)
 
         final_agreement = json.loads(self.c.get_trade(self.trade_id))
@@ -254,7 +263,7 @@ class TestFinalizeJury(JuryTestBase):
             # 5th never reveals -> 2-2 tie among reveals, no majority
         }
         self._commit_and_reveal(votes)
-        with patch.object(gl.nondet, "exec_prompt", return_value={"plausible": True}):
+        with patch.object(gl.nondet, "exec_prompt", return_value={"outcome": "TRADE_BREACHED"}):
             self.c.finalize_jury(self.trade_id)
 
         final_agreement = json.loads(self.c.get_trade(self.trade_id))
@@ -267,7 +276,7 @@ class TestFinalizeJury(JuryTestBase):
     def test_double_finalize_is_impossible(self):
         votes = {addr.lower(): "TRADE_BREACHED" for addr in self.selected}
         self._commit_and_reveal(votes)
-        with patch.object(gl.nondet, "exec_prompt", return_value={"plausible": True}):
+        with patch.object(gl.nondet, "exec_prompt", return_value={"outcome": "TRADE_BREACHED"}):
             self.c.finalize_jury(self.trade_id)
         with self.assertRaises(Exception):
             self.c.finalize_jury(self.trade_id)  # already finalized -> wrong status
@@ -295,7 +304,8 @@ class TestReputationAndWeightCap(unittest.TestCase):
         w_whale = self.c._selection_weight(whale)
         w_normal = self.c._selection_weight(normal)
         # whale's weight is capped at MAX_EFFECTIVE_STAKE, not the raw stake
-        self.assertEqual(w_whale, float(int(self.c.MAX_EFFECTIVE_STAKE)))
+        self.assertEqual(w_whale, int(self.c.MAX_EFFECTIVE_STAKE))
+        self.assertIsInstance(w_whale, int)
         self.assertLess(w_whale / w_normal, float(self.c.MAX_EFFECTIVE_STAKE))
 
 
