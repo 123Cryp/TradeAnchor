@@ -113,6 +113,8 @@
   .sheet-card{background:var(--paper);width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;
               padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
   footer{max-width:760px;margin:0 auto;padding:6px 16px 30px;color:var(--ink-faint);font-size:12.5px}
+  .check{display:flex;gap:10px;align-items:center;margin-top:12px}
+  .check input{width:auto;margin:0}
 </style>
 </head>
 <body>
@@ -177,13 +179,19 @@
       <p class="hint">Recorded on-chain now. A completed outcome is never accepted unless the evidence shows this address.</p>
       <label for="fAmount">Expected amount (optional)</label>
       <input id="fAmount" placeholder="1 ETH">
+      <p class="hint">A number and at most one asset symbol, for example 250.5 USDT, 0.01 ETH or 31337 wei.</p>
+      <label for="fToken">Token contract (leave empty for ETH or another native coin)</label>
+      <input id="fToken" placeholder="0x… token contract address" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <p class="hint">Needed when the amount is a token (for example USDT) and structured proof is required: a token transfer only counts if it comes from exactly this contract, so a fake token with the same symbol cannot prove payment.</p>
       <label for="fDomains">Allowed evidence domains</label>
-      <input id="fDomains" placeholder="etherscan.io, basescan.org" autocapitalize="off" autocomplete="off" spellcheck="false">
-      <p class="hint">Comma-separated. Party B sees this before accepting. Evidence must be an https link on one of these domains or a subdomain.</p>
+      <input id="fDomains" placeholder="eth.blockscout.com" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <p class="hint">Comma-separated. Party B sees this before accepting. Evidence must be an https link on one of these domains or a subdomain. Strongest proof: a Blockscout API link such as https://eth.blockscout.com/api/v2/transactions/&lt;tx hash&gt;, which the contract checks field by field (recipient, exact amount, success, time).</p>
       <div class="grid2">
         <div><label for="fStake">Your stake (GEN)</label><input id="fStake" inputmode="decimal" placeholder="1.0"></div>
         <div><label for="fMinSrc">Min. evidence sources</label><input id="fMinSrc" inputmode="numeric" value="1"></div>
       </div>
+      <label class="check"><input type="checkbox" id="fStruct" checked> Require structured transaction proof (recommended)</label>
+      <p class="hint">When ticked, completion needs a Blockscout API link that the contract verifies field by field. Untick to allow plain explorer pages, which are only checked by text.</p>
       <label for="fDeadline">Deadline</label>
       <input id="fDeadline" type="datetime-local">
       <p class="hint">Between 1 hour and 30 days from now.</p>
@@ -201,7 +209,7 @@
   <!-- ===== Jury ===== -->
   <section class="route" id="route-jury">
     <h2>Jurors</h2>
-    <p class="muted">Stake GEN to be eligible for appeal juries. Selection weight is capped, so large stakes cannot buy unlimited odds.</p>
+    <p class="muted">Stake GEN to be eligible for appeal juries. Minimum 0.001 GEN. Selection weight is capped, so large stakes cannot buy unlimited odds. Register before a trade is accepted: later registrations are not eligible for that trade.</p>
     <div class="card">
       <h3>Register or top up</h3>
       <label for="jStake">Stake to add (GEN)</label>
@@ -273,7 +281,7 @@
 import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
 import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
 
-const CONTRACT_ADDRESS = "0xd38960D5CD8afB30A531A1989F1A30ECc706893a";
+const CONTRACT_ADDRESS = "0x8D4BEF845e2aE4E64062E112532DE7A3001d1B54";
 const OUTCOMES = ["TRADE_COMPLETED", "PARTIALLY_COMPLETED", "TRADE_BREACHED"];
 const LIST_LIMIT = 40;
 
@@ -481,7 +489,7 @@ function outcomeTone(t) {
 }
 const STATUS_LABEL = {
   created: "Waiting for party B", open: "Awaiting evidence", evidence_locked: "Evidence locked",
-  tier1_resolved: "Outcome issued", appealed: "Under appeal", finalized: "Finalized", cancelled: "Cancelled",
+  tier1_resolved: "Outcome issued", appeal_filed: "Appeal filed", appealed: "Under appeal", finalized: "Finalized", cancelled: "Cancelled",
 };
 
 /* ---------- Explore ---------- */
@@ -552,7 +560,7 @@ $("createBtn").addEventListener("click", async () => {
   if (leadH < 1.05 || leadH > 29.9 * 24) return showOut(out, "Deadline must be between 1 hour and 30 days from now.", "err");
   if (!Number.isInteger(minSources) || minSources < 1) return showOut(out, "Min. evidence sources must be a whole number of at least 1.", "err");
   const id = await write(out, "create_trade", "create_trade",
-    [v("fPartyB"), v("fTerms"), v("fCriteria"), v("fAddress"), v("fAmount"), v("fDomains"), deadline.toISOString(), minSources], stakeWei);
+    [v("fPartyB"), v("fTerms"), v("fCriteria"), v("fAddress"), v("fAmount"), v("fDomains"), deadline.toISOString(), minSources, $("fStruct").checked, v("fToken")], stakeWei);
   if (id && typeof id === "string") location.hash = `#/trade/${id}`;
 });
 
@@ -621,10 +629,10 @@ async function renderTrade(id) {
   if (role) view.appendChild(h("p", { class: "faint", text: role }));
 
   if (t.status !== "cancelled") {
-    const idx = STEPS.findIndex((s) => s[0] === t.status);
+    const idx = STEPS.findIndex((s) => s[0] === (t.status === "appeal_filed" ? "appealed" : t.status));
     const steps = h("div", { class: "steps" });
     STEPS.forEach((s, i) => {
-      if (s[0] === "appealed" && !t.appeal && t.status !== "appealed") return;
+      if (s[0] === "appealed" && !t.appeal) return;
       steps.appendChild(h("span", { class: "step " + (i < idx ? "done" : i === idx ? "now" : ""), text: s[1] }));
     });
     view.appendChild(steps);
@@ -653,8 +661,10 @@ async function renderTrade(id) {
       ["Stake", `${weiToGen(t.stake_amount)} GEN each`],
       ["Receiving address", h("span", { class: "mono", text: t.expected_receiving_address })],
       ["Expected amount", t.expected_amount || "not fixed"],
+      ["Paid in", t.expected_token_contract ? h("span", { class: "mono", text: t.expected_token_contract }) : "Native coin"],
       ["Deadline", fmtTime(t.deadline)],
-      ["Min. sources", String(t.min_evidence_sources)],
+      ["Min. source hosts", String(t.min_evidence_sources)],
+      ["Proof required", t.require_structured_proof ? "Structured transaction" : "Text or structured"],
     ]),
     h("div", { style: "margin-top:12px" }, h("div", { class: "faint", text: "Allowed evidence domains" }),
       h("div", { class: "chips", style: "margin-top:6px" }, (t.allowed_evidence_domains || []).map((d) => h("span", { class: "chip", text: d }))))));
@@ -664,8 +674,8 @@ async function renderTrade(id) {
     const s = t.evidence_snapshot;
     view.appendChild(h("div", { class: "card" }, h("h3", { text: "Frozen evidence" }),
       h("div", { style: "margin-top:8px" }, s.source_urls.map((u) => h("div", { class: "mono", style: "word-break:break-all;margin-bottom:6px", text: u }))),
-      kv([["Locked", fmtTime(s.locked_at)], ["Submitted by", h("span", { class: "mono", text: short(s.submitted_by) })],
-          ["Evidence root", h("span", { class: "mono", text: short(s.evidence_root) })]])));
+      kv([["Locked", fmtTime(s.locked_at)], ["Submitted by", h("span", { class: "mono", text: (Array.isArray(s.submitted_by) ? s.submitted_by : [s.submitted_by]).map(short).join(", ") })],
+          ["URL set hash", h("span", { class: "mono", text: short(s.evidence_url_set_hash || s.evidence_root) })].concat(t.evidence_content_root ? [["Content root", h("span", { class: "mono", text: short(t.evidence_content_root) })]] : [])])));
   }
 
   /* jury */
@@ -699,29 +709,92 @@ async function renderTrade(id) {
   }
 
   if (st === "open") {
-    const ta = h("textarea", { placeholder: "One https link per line", spellcheck: "false", autocapitalize: "off" });
-    const [b, o2] = actionButton("Lock evidence", "", (out) => {
-      const urls = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
-      if (!urls.length) { showOut(out, "Enter at least one URL.", "err"); return null; }
-      return write(out, "submit_evidence", "submit_evidence", [t.trade_id, urls]);
-    });
-    acts.appendChild(actionCard("Submit evidence",
-      "Single shot: the first accepted call freezes the evidence. Links must be https and on: " + (t.allowed_evidence_domains || []).join(", "), ta, b, o2));
+    const subs = t.evidence_submissions || {};
+    const keys = Object.keys(subs);
+    const mine = account ? subs[String(account).toLowerCase()] : null;
+    const bothIn = keys.length >= 2;
+    const lockAt = t.evidence_lock_at;
+    const graceOver = lockAt ? isPast(lockAt) : false;
+
+    acts.appendChild(h("div", { class: "card" }, h("h3", { text: "Evidence so far" }),
+      h("p", { class: "hint", text: keys.length
+        ? `${keys.length} of 2 parties have submitted. The snapshot freezes when both have, or after the counterparty window (${fmtTime(lockAt)}).`
+        : "Nobody has submitted yet. Each party can submit once; the first submission does not freeze anything." }),
+      ...keys.map((k) => h("div", { style: "margin-top:8px" },
+        h("div", { class: "faint", text: short(k) }),
+        ...subs[k].map((u) => h("div", { class: "mono", style: "word-break:break-all", text: u }))))));
+
+    if ((isA || isB) && !mine && !(lockAt && graceOver) && !isPast(t.evidence_deadline)) {
+      const ta = h("textarea", { placeholder: "One https link per line (max 5)", spellcheck: "false", autocapitalize: "off" });
+      const [b, o2] = actionButton("Submit my evidence", "", (out) => {
+        const urls = ta.value.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+        if (!urls.length) { showOut(out, "Enter at least one URL.", "err"); return null; }
+        return write(out, "submit_evidence", "submit_evidence", [t.trade_id, urls]);
+      });
+      acts.appendChild(actionCard("Submit evidence",
+        "One submission per party. Links must be https and on: " + (t.allowed_evidence_domains || []).join(", "), ta, b, o2));
+    } else if (account && !(isA || isB)) {
+      acts.appendChild(h("p", { class: "hint", text: "Only the two parties can submit evidence." }));
+    } else if (mine) {
+      acts.appendChild(h("p", { class: "hint", text: "You have already submitted your evidence." }));
+    }
+
+    if (keys.length && (bothIn || graceOver)) {
+      const [bl, ol] = actionButton("Lock evidence", "", (out) => write(out, "lock_evidence", "lock_evidence", [t.trade_id]));
+      acts.appendChild(actionCard("Freeze the evidence", "Anyone can do this once both parties have submitted or the counterparty window has closed. Needs at least " + t.min_evidence_sources + " distinct source host(s) in total (several URLs on one site count once).", bl, ol));
+    }
+  }
+
+  if (st === "open" && isPast(t.evidence_deadline)) {
+    const [be, oe] = actionButton("Close trade and refund both stakes", "secondary", (out) =>
+      write(out, "expire_unevidenced", "expire_unevidenced", [t.trade_id]));
+    acts.appendChild(actionCard("Evidence window closed",
+      "No evidence was locked before " + fmtTime(t.evidence_deadline) + ". Anyone can call this. Submitted evidence that can be locked is locked and goes to the automated outcome; otherwise the trade ends as UNDETERMINED and both stakes are refunded.", be, oe));
   }
 
   if (st === "evidence_locked") {
     const [b, o2] = actionButton("Resolve (Tier 1)", "", (out) => write(out, "resolve_tier1", "resolve_tier1", [t.trade_id]));
-    acts.appendChild(actionCard("Get the automated outcome", "Anyone can run this. Validators fetch the frozen evidence and check it against the recorded address. It can take a minute or two.", b, o2));
+    acts.appendChild(actionCard("Get the automated outcome", "Anyone can run this. Validators fetch the frozen evidence and check it against the recorded address. It can take a minute or two. Before the trade deadline only a proven completion can be recorded; if completion is not proven yet the call is rejected and can be run again after the deadline.", b, o2));
+    const lockedAt = t.evidence_snapshot && t.evidence_snapshot.locked_at;
+    const recoverBase = lockedAt ? Math.max(new Date(lockedAt).getTime(), new Date(t.deadline).getTime()) : 0;
+    if (lockedAt && Date.now() > recoverBase + 7 * 86400000) {
+      const [bx, ox] = actionButton("Close trade and refund both stakes", "secondary", (out) =>
+        write(out, "expire_unresolved", "expire_unresolved", [t.trade_id]));
+      acts.appendChild(actionCard("Resolution timed out",
+        "Tier 1 did not produce an outcome within 7 days of the evidence lock. Anyone can close the trade; it ends as UNDETERMINED and both stakes are refunded.", bx, ox));
+    }
   }
 
   if (st === "tier1_resolved") {
     const bond = appealBondWei(t.stake_amount);
+    const jurorNote = h("p", { class: "hint", text: "Checking how many jurors are available…" });
+    acts.appendChild(jurorNote);
+    read("count_eligible_jurors", [t.trade_id]).then((n) => {
+      const c = Number(n);
+      jurorNote.textContent = c >= 5
+        ? `${c} eligible jurors available (5 needed).`
+        : `Only ${c} eligible jurors available; an appeal needs 5, so appealing would fail right now.`;
+    }).catch(() => { jurorNote.textContent = ""; });
     const [b, o2] = actionButton(`Appeal with ${weiToGen(bond)} GEN bond`, "secondary", (out) =>
       write(out, "appeal", "appeal", [t.trade_id], bond));
-    acts.appendChild(actionCard("Appeal", `Either party, before ${fmtTime(t.appeal_deadline)}. Needs at least 5 staked jurors. The jury judges the same frozen evidence.`, b, o2));
+    acts.appendChild(actionCard("Appeal", `Either party, before ${fmtTime(t.appeal_deadline)}. Needs at least 5 staked jurors. After the window closes anyone draws the jury using a randomness round that did not exist when you appealed. The jury judges the evidence content frozen at Tier 1.`, b, o2));
     const [b3, o3] = actionButton("Finalize without appeal", "", (out) => write(out, "finalize_unappealed", "finalize_unappealed", [t.trade_id]));
     acts.appendChild(actionCard("Finalize",
       isPast(t.appeal_deadline) ? "The appeal window has closed. Anyone can finalize." : "Available after the appeal window closes.", b3, o3));
+  }
+
+  if (st === "appeal_filed") {
+    const [bd, od] = actionButton("Draw the jury", "", (out) => write(out, "draw_jury", "draw_jury", [t.trade_id]));
+    acts.appendChild(actionCard("Draw the jury",
+      isPast(t.appeal_deadline)
+        ? "The appeal window has closed. Anyone can draw the jury now. The draw uses a randomness round published after the window, and the pool is recorded so it can be replayed."
+        : `Available after ${fmtTime(t.appeal_deadline)} (a short wait for the randomness round may follow).`, bd, od));
+    if (Date.now() > new Date(t.appeal_deadline).getTime() + 7 * 86400000) {
+      const [bs, os2] = actionButton("Recover stuck appeal", "secondary", (out) =>
+        write(out, "expire_stuck_appeal", "expire_stuck_appeal", [t.trade_id]));
+      acts.appendChild(actionCard("Appeal stuck",
+        "The jury could not be drawn within 7 days. Anyone can recover: the automated outcome stands and the bond is refunded.", bs, os2));
+    }
   }
 
   if (st === "appealed") {
@@ -734,7 +807,9 @@ async function renderTrade(id) {
       const salt = saltIn.value.trim() || randomSalt();
       saltIn.value = salt;
       saveVote(t.trade_id, voteSel.value, salt);
-      const hash = await sha256Hex(`${voteSel.value}:${salt}`);
+      if (!needClient(out)) return null;
+      const juror = String(account || "").toLowerCase();
+      const hash = await sha256Hex(`${voteSel.value}:${salt}:${juror}:${t.trade_id}`);
       return write(out, "commit_vote", "commit_vote", [t.trade_id, hash]);
     });
     acts.appendChild(actionCard("Commit vote (selected jurors only)",
@@ -753,6 +828,12 @@ async function renderTrade(id) {
     const [bf, of2] = actionButton("Finalize jury round", "", (out) => write(out, "finalize_jury", "finalize_jury", [t.trade_id]));
     acts.appendChild(actionCard("Finalize jury",
       isPast(j.reveal_deadline) ? "The reveal window has closed. Anyone can finalize." : `Available after ${fmtTime(j.reveal_deadline)}.`, bf, of2));
+    if (Date.now() > new Date(j.reveal_deadline).getTime() + 7 * 86400000) {
+      const [bs, os2] = actionButton("Recover stuck appeal", "secondary", (out) =>
+        write(out, "expire_stuck_appeal", "expire_stuck_appeal", [t.trade_id]));
+      acts.appendChild(actionCard("Appeal stuck",
+        "The jury round could not be finalized within 7 days after reveal. Anyone can recover: the automated outcome stands, the bond is refunded and jurors are unlocked.", bs, os2));
+    }
   }
 
   if (st === "finalized") {
