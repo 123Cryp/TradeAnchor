@@ -97,6 +97,18 @@ class _Vm:
 
     UserError = UserError
 
+    class Return:
+        def __init__(self, calldata):
+            self.calldata = calldata
+
+    @staticmethod
+    def run_nondet_unsafe(leader_fn, validator_fn):
+        result = leader_fn()
+        verdict = validator_fn(_Vm.Return(result))
+        if not verdict:
+            raise UserError("validator rejected leader result")
+        return result
+
 
 class _WriteDecorator:
     """
