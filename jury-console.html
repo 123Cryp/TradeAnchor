@@ -179,13 +179,13 @@ $("btnRegister").addEventListener("click", () => run("Register jurors", async ()
 $("btnCommit").addEventListener("click", () => run("Commit votes", async () => {
   needWallets();
   const vote = $("vote").value, id = tradeId();
-  for (const [i, w] of wallets.entries()) {
+  try { localStorage.setItem(KEY + ":vote:" + id, JSON.stringify({ vote })); } catch (e) {}
+  await Promise.all(wallets.map(async (w, i) => {
     const salt = "salt-" + w.address.slice(2, 10) + "-" + i;
     const hash = await sha256Hex(`${vote}:${salt}:${w.address.toLowerCase()}:${id}`);
-    try { localStorage.setItem(KEY + ":vote:" + id, JSON.stringify({ vote })); } catch (e) {}
     try { await send(w, i, "commit_vote", [id, hash]); }
     catch (e) { log(`  (juror ${i + 1} skipped: ${e.message}. Not selected for this jury?)`); }
-  }
+  }));
 }));
 
 $("btnReveal").addEventListener("click", () => run("Reveal votes", async () => {
@@ -193,11 +193,11 @@ $("btnReveal").addEventListener("click", () => run("Reveal votes", async () => {
   const id = tradeId();
   let vote = $("vote").value;
   try { const s = JSON.parse(localStorage.getItem(KEY + ":vote:" + id) || "null"); if (s?.vote) vote = s.vote; } catch (e) {}
-  for (const [i, w] of wallets.entries()) {
+  await Promise.all(wallets.map(async (w, i) => {
     const salt = "salt-" + w.address.slice(2, 10) + "-" + i;
     try { await send(w, i, "reveal_vote", [id, vote, salt]); }
     catch (e) { log(`  (juror ${i + 1} skipped: ${e.message})`); }
-  }
+  }));
 }));
 
 $("btnDraw").addEventListener("click", () => run("Draw jury", async () => {
@@ -208,10 +208,10 @@ $("btnFinalize").addEventListener("click", () => run("Finalize jury", async () =
 }));
 $("btnWithdraw").addEventListener("click", () => run("Withdraw", async () => {
   needWallets();
-  for (const [i, w] of wallets.entries()) {
+  await Promise.all(wallets.map(async (w, i) => {
     try { await send(w, i, "withdraw", []); }
     catch (e) { log(`  (juror ${i + 1}: nothing to withdraw)`); }
-  }
+  }));
 }));
 
 $("btnStatus").addEventListener("click", async () => {
