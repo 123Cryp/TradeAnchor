@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradeAnchor Jury Console</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e8eaf0; --muted:#9aa3b2; --accent:#5b8cff; --ok:#3ecf8e; --err:#ff6b6b; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f5f6f8; --card:#fff; --line:#dde1e8; --text:#161a22; --muted:#5b6575; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; padding:16px; max-width:760px; margin-inline:auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.muted, .muted { color:var(--muted); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, select { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:15px; }
+  button { padding:10px 14px; border-radius:8px; border:0; background:var(--accent); color:#fff; font-size:15px; margin:8px 8px 0 0; }
+  button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
+  button:disabled { opacity:.5; }
+  pre { white-space:pre-wrap; word-break:break-all; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; max-height:340px; overflow:auto; }
+  .mono { font-family: ui-monospace, monospace; font-size:12px; word-break:break-all; }
+</style>
+</head>
+<body>
+<h1>TradeAnchor Jury Console</h1>
+<p class="muted">Test helper for GenLayer Studio. It creates five throwaway juror wallets in this browser and runs register, commit and reveal for all of them with one tap each. Never put real funds on these wallets.</p>
+
+<div class="card">
+  <label for="contract">Contract address</label>
+  <input id="contract" placeholder="0x…" autocapitalize="off" autocomplete="off" spellcheck="false">
+  <label for="tradeId">Trade id</label>
+  <input id="tradeId" value="trade_0">
+</div>
+
+<div class="card">
+  <b>1. Juror wallets</b>
+  <p class="muted">Create once. They are saved in this browser only.</p>
+  <button id="btnCreate">Create 5 juror wallets</button>
+  <button id="btnClear" class="secondary">Forget wallets</button>
+  <div id="wallets" class="mono" style="margin-top:10px"></div>
+</div>
+
+<div class="card">
+  <b>2. Before the trade is accepted</b>
+  <button id="btnFund">Give each wallet 10 test GEN</button>
+  <button id="btnRegister">Register all as jurors (1 GEN each)</button>
+</div>
+
+<div class="card">
+  <b>3. After the jury is drawn</b>
+  <label for="vote">Vote for all jurors</label>
+  <select id="vote">
+    <option>TRADE_COMPLETED</option>
+    <option>TRADE_BREACHED</option>
+    <option>PARTIALLY_COMPLETED</option>
+  </select>
+  <button id="btnCommit">Commit all votes</button>
+  <button id="btnReveal">Reveal all votes</button>
+</div>
+
+<div class="card">
+  <b>4. Finish</b>
+  <button id="btnDraw">Draw the jury</button>
+  <button id="btnFinalize">Finalize jury</button>
+  <button id="btnWithdraw" class="secondary">Withdraw for all jurors</button>
+</div>
+
+<div class="card">
+  <b>Status</b>
+  <button id="btnStatus" class="secondary">Refresh status</button>
+  <pre id="status">Not loaded.</pre>
+</div>
+
+<div class="card">
+  <b>Log</b>
+  <pre id="log"></pre>
+</div>
+
+<script type="module">
+import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
+import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
+
+const $ = (id) => document.getElementById(id);
+const WEI_PER_GEN = 10n ** 18n;
+const KEY = "tradeanchor-jury-console-wallets";
+const readClient = createClient({ chain: studionet });
+
+const qs = new URLSearchParams(location.search);
+if (/^0x[0-9a-fA-F]{40}$/.test(qs.get("contract") || "")) $("contract").value = qs.get("contract");
+if (qs.get("trade")) $("tradeId").value = qs.get("trade");
+
+let wallets = [];
+try { wallets = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { wallets = []; }
+const saveWallets = () => { try { localStorage.setItem(KEY, JSON.stringify(wallets)); } catch (e) {} };
+
+function log(line) {
+  const el = $("log");
+  el.textContent += line + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+const short = (a) => a.slice(0, 8) + "…" + a.slice(-6);
+const contract = () => {
+  const c = $("contract").value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(c)) throw new Error("Enter the contract address first.");
+  return c;
+};
+const tradeId = () => $("tradeId").value.trim();
+
+function renderWallets() {
+  $("wallets").textContent = wallets.length
+    ? wallets.map((w, i) => `${i + 1}. ${w.address}`).join("\n")
+    : "No wallets yet.";
+}
+
+function clientFor(w) {
+  return createClient({ chain: studionet, account: createAccount(w.key) });
+}
+
+async function sha256Hex(text) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function send(w, i, functionName, args, valueGen = 0n) {
+  const c = clientFor(w);
+  const hash = await c.writeContract({ address: contract(), functionName, args, value: valueGen * WEI_PER_GEN });
+  log(`  juror ${i + 1}: ${functionName} sent ${short(hash)}`);
+  const receipt = await c.waitForTransactionReceipt({ hash, status: "FINALIZED", interval: 4000, retries: 60 });
+  const failed = receipt?.consensus_data?.leader_receipt?.[0]?.execution_result === "ERROR";
+  if (failed) throw new Error(`juror ${i + 1}: the contract rejected ${functionName}`);
+  log(`  juror ${i + 1}: ${functionName} finalized`);
+}
+
+let busy = false;
+async function run(label, fn) {
+  if (busy) return;
+  busy = true;
+  document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  log(`== ${label}`);
+  try { await fn(); log(`== ${label}: done`); }
+  catch (e) { log(`!! ${label}: ${e?.message || String(e)}`); }
+  finally { busy = false; document.querySelectorAll("button").forEach((b) => (b.disabled = false)); }
+}
+
+function needWallets() {
+  if (wallets.length < 5) throw new Error("Create the 5 juror wallets first.");
+}
+
+$("btnCreate").addEventListener("click", () => {
+  if (wallets.length) return log("Wallets already exist. Tap Forget wallets first if you want new ones.");
+  for (let i = 0; i < 5; i++) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const key = "0x" + Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    wallets.push({ key, address: createAccount(key).address });
+  }
+  saveWallets(); renderWallets(); log("Created 5 wallets.");
+});
+$("btnClear").addEventListener("click", () => {
+  wallets = []; saveWallets(); renderWallets(); log("Wallets forgotten.");
+});
+
+$("btnFund").addEventListener("click", () => run("Fund wallets", async () => {
+  needWallets();
+  const url = studionet.rpcUrls?.default?.http?.[0];
+  for (const [i, w] of wallets.entries()) {
+    const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "sim_fundAccount", params: [w.address, Number(10n * WEI_PER_GEN)] }) });
+    const body = await res.json();
+    if (body.error) throw new Error("RPC refused: " + JSON.stringify(body.error));
+    log(`  juror ${i + 1}: funded`);
+  }
+}));
+
+$("btnRegister").addEventListener("click", () => run("Register jurors", async () => {
+  needWallets();
+  for (const [i, w] of wallets.entries()) await send(w, i, "register_juror", [], 1n);
+}));
+
+$("btnCommit").addEventListener("click", () => run("Commit votes", async () => {
+  needWallets();
+  const vote = $("vote").value, id = tradeId();
+  for (const [i, w] of wallets.entries()) {
+    const salt = "salt-" + w.address.slice(2, 10) + "-" + i;
+    const hash = await sha256Hex(`${vote}:${salt}:${w.address.toLowerCase()}:${id}`);
+    try { localStorage.setItem(KEY + ":vote:" + id, JSON.stringify({ vote })); } catch (e) {}
+    try { await send(w, i, "commit_vote", [id, hash]); }
+    catch (e) { log(`  (juror ${i + 1} skipped: ${e.message}. Not selected for this jury?)`); }
+  }
+}));
+
+$("btnReveal").addEventListener("click", () => run("Reveal votes", async () => {
+  needWallets();
+  const id = tradeId();
+  let vote = $("vote").value;
+  try { const s = JSON.parse(localStorage.getItem(KEY + ":vote:" + id) || "null"); if (s?.vote) vote = s.vote; } catch (e) {}
+  for (const [i, w] of wallets.entries()) {
+    const salt = "salt-" + w.address.slice(2, 10) + "-" + i;
+    try { await send(w, i, "reveal_vote", [id, vote, salt]); }
+    catch (e) { log(`  (juror ${i + 1} skipped: ${e.message})`); }
+  }
+}));
+
+$("btnDraw").addEventListener("click", () => run("Draw jury", async () => {
+  needWallets(); await send(wallets[0], 0, "draw_jury", [tradeId()]);
+}));
+$("btnFinalize").addEventListener("click", () => run("Finalize jury", async () => {
+  needWallets(); await send(wallets[0], 0, "finalize_jury", [tradeId()]);
+}));
+$("btnWithdraw").addEventListener("click", () => run("Withdraw", async () => {
+  needWallets();
+  for (const [i, w] of wallets.entries()) {
+    try { await send(w, i, "withdraw", []); }
+    catch (e) { log(`  (juror ${i + 1}: nothing to withdraw)`); }
+  }
+}));
+
+$("btnStatus").addEventListener("click", async () => {
+  const out = $("status");
+  try {
+    const c = contract(), id = tradeId();
+    const t = JSON.parse(await readClient.readContract({ address: c, functionName: "get_trade", args: [id] }));
+    const lines = [
+      `status: ${t.status}`,
+      `tier1: ${t.tier1_outcome}`,
+      `final: ${t.final_outcome}`,
+      `appeal_deadline: ${t.appeal_deadline || "-"}`,
+    ];
+    if (t.jury) {
+      lines.push(`selected jurors: ${t.jury.selected_jurors.length}`,
+        `commit_deadline: ${t.jury.commit_deadline}`, `reveal_deadline: ${t.jury.reveal_deadline}`,
+        `commits: ${Object.keys(t.jury.commits).length}, reveals: ${Object.keys(t.jury.reveals).length}`,
+        `provisional: ${t.jury.provisional_outcome}, verified: ${t.jury.verification_passed}`);
+    }
+    for (const [i, w] of wallets.entries()) {
+      const j = JSON.parse(await readClient.readContract({ address: c, functionName: "get_juror", args: [w.address] }));
+      const p = await readClient.readContract({ address: c, functionName: "get_pending_withdrawal", args: [w.address] });
+      lines.push(`juror ${i + 1}: stake ${j.stake}, pending ${p}, locked ${j.locked_cases || 0}`);
+    }
+    out.textContent = lines.join("\n");
+  } catch (e) { out.textContent = "Error: " + (e?.message || String(e)); }
+});
+
+renderWallets();
+</script>
+</body>
+</html>
